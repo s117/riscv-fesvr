@@ -68,6 +68,8 @@ syscall_t::syscall_t(htif_t* htif)
   table[67] = &syscall_t::sys_pread;
   table[68] = &syscall_t::sys_pwrite;
   table[2011] = &syscall_t::sys_getmainvars;
+  table[46] = &syscall_t::sys_ftruncate;
+  table[49] = &syscall_t::sys_chdir;
 
   register_command(0, std::bind(&syscall_t::handle_syscall, this, _1), "syscall");
 
