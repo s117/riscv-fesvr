@@ -190,6 +190,11 @@ reg_t syscall_t::sys_fcntl(reg_t fd, reg_t cmd, reg_t arg, reg_t a3, reg_t a4, r
   return sysret_errno(fcntl(fds.lookup(fd), cmd, arg));
 }
 
+reg_t syscall_t::sys_ftruncate(reg_t fd, reg_t len, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
+{
+  return sysret_errno(ftruncate(fds.lookup(fd), len));
+}
+
 reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> name(len);
@@ -303,6 +308,21 @@ reg_t syscall_t::sys_getmainvars(reg_t pbuf, reg_t limit, reg_t a2, reg_t a3, re
 
   memif->write(pbuf, bytes.size(), &bytes[0]);
   return 0;
+}
+
+reg_t syscall_t::sys_chdir(reg_t path, reg_t a1, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
+{
+  size_t size = 0;
+  while (memif->read_uint8(path + size++))
+    ;
+  std::vector<char> buf(size);
+  for (size_t offset = 0;; offset++)
+  {
+    buf[offset] = memif->read_uint8(path + offset);
+    if (!buf[offset])
+      break;
+  }
+  return sysret_errno(chdir(buf.data()));
 }
 
 void syscall_t::dispatch(reg_t mm)
