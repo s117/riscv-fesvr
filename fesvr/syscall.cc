@@ -310,18 +310,16 @@ reg_t syscall_t::sys_getmainvars(reg_t pbuf, reg_t limit, reg_t a2, reg_t a3, re
   return 0;
 }
 
-reg_t syscall_t::sys_chdir(reg_t path, reg_t a1, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
+reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
-  size_t size = 0;
-  while (memif->read_uint8(path + size++))
-    ;
   std::vector<char> buf(size);
-  for (size_t offset = 0;; offset++)
+  for (size_t offset = 0; offset < size; offset++)
   {
     buf[offset] = memif->read_uint8(path + offset);
     if (!buf[offset])
       break;
   }
+  assert(buf[size-1] == 0);
   return sysret_errno(chdir(buf.data()));
 }
 
