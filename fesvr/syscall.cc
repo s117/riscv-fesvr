@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <termios.h>
 #include <dirent.h>
+#include <sys/random.h>
 #include <sstream>
 #include <iostream>
 
@@ -73,6 +74,7 @@ syscall_t::syscall_t(htif_t* htif)
   table[46] = &syscall_t::sys_ftruncate;
   table[49] = &syscall_t::sys_chdir;
   table[61] = &syscall_t::sys_getdents64;
+  table[278] = &syscall_t::sys_getrandom;
 
   register_command(0, std::bind(&syscall_t::handle_syscall, this, _1), "syscall");
 
@@ -335,6 +337,17 @@ reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t count, reg_t a3, r
     memif->write(dirbuf, ret, buf);
   }
   delete[] buf;
+  return ret;
+}
+
+reg_t syscall_t::sys_getrandom(reg_t buf, reg_t buflen, reg_t flags, reg_t a3, reg_t a4, reg_t a5, reg_t a6){
+  char* tmp_buf = new char[buflen];
+  reg_t ret =  sysret_errno(getrandom(tmp_buf, buflen, flags));
+  if ((sreg_t)ret > 0)
+  {
+    memif->write(buf, ret, tmp_buf);
+  }
+  delete[] tmp_buf;
   return ret;
 }
 
