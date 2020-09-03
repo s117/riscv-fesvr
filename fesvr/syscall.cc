@@ -9,8 +9,10 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <termios.h>
+#include <dirent.h>
 #include <sstream>
 #include <iostream>
+
 using namespace std::placeholders;
 
 #define RISCV_AT_FDCWD -100
@@ -70,6 +72,7 @@ syscall_t::syscall_t(htif_t* htif)
   table[2011] = &syscall_t::sys_getmainvars;
   table[46] = &syscall_t::sys_ftruncate;
   table[49] = &syscall_t::sys_chdir;
+  table[61] = &syscall_t::sys_getdents64;
 
   register_command(0, std::bind(&syscall_t::handle_syscall, this, _1), "syscall");
 
@@ -321,6 +324,18 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
   }
   assert(buf[size-1] == 0);
   return sysret_errno(chdir(buf.data()));
+}
+
+reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t count, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
+{
+  char* buf = new char[count];
+  reg_t ret = sysret_errno(getdents64(fds.lookup(fd), (void *)buf, count));
+  if ((sreg_t)ret > 0)
+  {
+    memif->write(dirbuf, ret, buf);
+  }
+  delete[] buf;
+  return ret;
 }
 
 void syscall_t::dispatch(reg_t mm)
