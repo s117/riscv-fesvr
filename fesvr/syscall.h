@@ -64,6 +64,7 @@ class syscall_t : public device_t
   reg_t sys_chdir(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_getdents64(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_getrandom(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
+  reg_t sys_renameat2(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
 };
 
 #endif

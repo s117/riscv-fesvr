@@ -75,6 +75,7 @@ syscall_t::syscall_t(htif_t* htif)
   table[49] = &syscall_t::sys_chdir;
   table[61] = &syscall_t::sys_getdents64;
   table[278] = &syscall_t::sys_getrandom;
+  table[276] = &syscall_t::sys_renameat2;
 
   register_command(0, std::bind(&syscall_t::handle_syscall, this, _1), "syscall");
 
@@ -349,6 +350,16 @@ reg_t syscall_t::sys_getrandom(reg_t buf, reg_t buflen, reg_t flags, reg_t a3, r
   }
   delete[] tmp_buf;
   return ret;
+}
+
+reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndirfd, reg_t pnpath, reg_t nlen, reg_t flags)
+{
+  std::vector<char> opath(olen), npath(nlen);
+  memif->read(popath, olen, &opath[0]);
+  memif->read(pnpath, nlen, &npath[0]);
+  return sysret_errno(renameat2(fds.lookup(odirfd), int(odirfd) == RISCV_AT_FDCWD ? do_chroot(&opath[0]).c_str() : &opath[0],
+                               fds.lookup(ndirfd), int(ndirfd) == RISCV_AT_FDCWD ? do_chroot(&npath[0]).c_str() : &npath[0],
+                               flags));
 }
 
 void syscall_t::dispatch(reg_t mm)
