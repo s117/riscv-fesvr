@@ -124,7 +124,7 @@ reg_t syscall_t::sys_exit(reg_t code, reg_t a1, reg_t a2, reg_t a3, reg_t a4, re
   htif->exitcode = code << 1 | 1;
 
   m_strace.syscall_record_begin("sys_exit", 93);
-  m_strace.syscall_record_param_int(PASS_PARAM(code));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(code));
   m_strace.syscall_record_end(0);
 
   return 0;
@@ -144,9 +144,9 @@ reg_t syscall_t::sys_read(reg_t fd, reg_t pbuf, reg_t len, reg_t a3, reg_t a4, r
     memif->write(pbuf, ret, &buf[0]);
 
   m_strace.syscall_record_begin("sys_read", 63);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
   m_strace.syscall_record_end(ret_errno);
 
   return ret_errno;
@@ -161,10 +161,10 @@ reg_t syscall_t::sys_pread(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4,
     memif->write(pbuf, ret, &buf[0]);
 
   m_strace.syscall_record_begin("sys_pread", 67);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(off));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(off));
   m_strace.syscall_record_end(ret_errno);
 
   return ret_errno;
@@ -177,9 +177,9 @@ reg_t syscall_t::sys_write(reg_t fd, reg_t pbuf, reg_t len, reg_t a3, reg_t a4, 
   reg_t ret = sysret_errno(write(fds.lookup(fd), &buf[0], len));
 
   m_strace.syscall_record_begin("sys_write", 64);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -192,10 +192,10 @@ reg_t syscall_t::sys_pwrite(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4
   reg_t ret = sysret_errno(pwrite(fds.lookup(fd), &buf[0], len, off));
 
   m_strace.syscall_record_begin("sys_pwrite", 68);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(off));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(off));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -208,7 +208,7 @@ reg_t syscall_t::sys_close(reg_t fd, reg_t a1, reg_t a2, reg_t a3, reg_t a4, reg
   fds.dealloc(fd);
 
   m_strace.syscall_record_begin("sys_close", 57);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_end(0);
 
   return 0;
@@ -219,9 +219,9 @@ reg_t syscall_t::sys_lseek(reg_t fd, reg_t offset, reg_t whence, reg_t a3, reg_t
   reg_t ret = sysret_errno(lseek(fds.lookup(fd), offset, whence));
 
   m_strace.syscall_record_begin("sys_lseek", 62);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
-  m_strace.syscall_record_param_int(PASS_PARAM(offset));
-  m_strace.syscall_record_param_int(PASS_PARAM(whence));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(offset));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(whence));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -238,7 +238,7 @@ reg_t syscall_t::sys_fstat(reg_t fd, reg_t pbuf, reg_t a2, reg_t a3, reg_t a4, r
   }
 
   m_strace.syscall_record_begin("sys_fstat", 80);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
   m_strace.syscall_record_end(ret);
 
@@ -250,9 +250,9 @@ reg_t syscall_t::sys_fcntl(reg_t fd, reg_t cmd, reg_t arg, reg_t a3, reg_t a4, r
   reg_t ret = sysret_errno(fcntl(fds.lookup(fd), cmd, arg));
 
   m_strace.syscall_record_begin("sys_fcntl", 25);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
-  m_strace.syscall_record_param_int(PASS_PARAM(cmd));
-  m_strace.syscall_record_param_int(PASS_PARAM(arg));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(cmd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(arg));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -263,8 +263,8 @@ reg_t syscall_t::sys_ftruncate(reg_t fd, reg_t len, reg_t a2, reg_t a3, reg_t a4
   reg_t ret = sysret_errno(ftruncate(fds.lookup(fd), len));
 
   m_strace.syscall_record_begin("sys_ftruncate", 46);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -285,8 +285,8 @@ reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a
   }
 
   m_strace.syscall_record_begin("sys_lstat", 1039);
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
   m_strace.syscall_record_end(ret);
 
@@ -306,11 +306,11 @@ reg_t syscall_t::sys_openat(reg_t dirfd, reg_t pname, reg_t len, reg_t flags, re
   reg_t ret = fds.alloc(fd);
 
   m_strace.syscall_record_begin("sys_openat", 56);
-  m_strace.syscall_record_param_int(PASS_PARAM(dirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
-  m_strace.syscall_record_param_int(PASS_PARAM(mode));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(dirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(mode));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -330,11 +330,11 @@ reg_t syscall_t::sys_fstatat(reg_t dirfd, reg_t pname, reg_t len, reg_t pbuf, re
   }
 
   m_strace.syscall_record_begin("sys_fstatat", 79);
-  m_strace.syscall_record_param_int(PASS_PARAM(dirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(dirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -347,10 +347,10 @@ reg_t syscall_t::sys_faccessat(reg_t dirfd, reg_t pname, reg_t len, reg_t mode, 
   reg_t ret = sysret_errno(AT_SYSCALL(faccessat, dirfd, &name[0], mode, 0));
 
   m_strace.syscall_record_begin("sys_faccessat", 48);
-  m_strace.syscall_record_param_int(PASS_PARAM(dirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(mode));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(dirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(mode));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -366,13 +366,13 @@ reg_t syscall_t::sys_linkat(reg_t odirfd, reg_t poname, reg_t olen, reg_t ndirfd
                              flags));
 
   m_strace.syscall_record_begin("sys_linkat", 37);
-  m_strace.syscall_record_param_int(PASS_PARAM(odirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(poname), &oname[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(olen));
-  m_strace.syscall_record_param_int(PASS_PARAM(ndirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pnname), &nname[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(nlen));
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(odirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(poname), &oname[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(olen));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(ndirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pnname), &nname[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(nlen));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -385,10 +385,10 @@ reg_t syscall_t::sys_unlinkat(reg_t dirfd, reg_t pname, reg_t len, reg_t flags, 
   reg_t ret = sysret_errno(AT_SYSCALL(unlinkat, dirfd, &name[0], flags));
 
   m_strace.syscall_record_begin("sys_unlinkat", 35);
-  m_strace.syscall_record_param_int(PASS_PARAM(dirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(dirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -401,10 +401,10 @@ reg_t syscall_t::sys_mkdirat(reg_t dirfd, reg_t pname, reg_t len, reg_t mode, re
   reg_t ret = sysret_errno(AT_SYSCALL(mkdirat, dirfd, &name[0], mode));
 
   m_strace.syscall_record_begin("sys_mkdirat", 34);
-  m_strace.syscall_record_param_int(PASS_PARAM(dirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pname), &name[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(mode));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(dirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pname), &name[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(mode));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -416,7 +416,7 @@ reg_t syscall_t::sys_getcwd(reg_t pbuf, reg_t size, reg_t a2, reg_t a3, reg_t a4
   char* ret = getcwd(&buf[0], size);
   m_strace.syscall_record_begin("sys_getcwd", 17);
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(size));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(size));
 
   if (ret == NULL){
     reg_t r = sysret_errno(-1);
@@ -460,7 +460,7 @@ reg_t syscall_t::sys_getmainvars(reg_t pbuf, reg_t limit, reg_t a2, reg_t a3, re
 
   m_strace.syscall_record_begin("sys_getmainvars", 2011);
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(limit));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(limit));
 
   if (bytes.size() > limit){
     m_strace.syscall_record_end(-ENOMEM);
@@ -487,8 +487,8 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
   reg_t ret = sysret_errno(chdir(buf.data()));
 
   m_strace.syscall_record_begin("sys_chdir", 49);
-  m_strace.syscall_record_param_str(PASS_PARAM(path), buf.data(), 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(size));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(path), buf.data(), 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(size));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -504,9 +504,9 @@ reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, re
   }
 
   m_strace.syscall_record_begin("sys_getdents64", 61);
-  m_strace.syscall_record_param_int(PASS_PARAM(fd));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(fd));
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(dirbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(size));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(size));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -522,8 +522,8 @@ reg_t syscall_t::sys_getrandom(reg_t pbuf, reg_t len, reg_t flags, reg_t a3, reg
 
   m_strace.syscall_record_begin("sys_getrandom", 278);
   m_strace.syscall_record_param_simple_ptr(PASS_PARAM(pbuf), 'o');
-  m_strace.syscall_record_param_int(PASS_PARAM(len));
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(len));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
   m_strace.syscall_record_end(ret);
 
   return ret;
@@ -539,13 +539,13 @@ reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndi
                                flags));
 
   m_strace.syscall_record_begin("sys_renameat2", 276);
-  m_strace.syscall_record_param_int(PASS_PARAM(odirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(popath), &opath[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(olen));
-  m_strace.syscall_record_param_int(PASS_PARAM(ndirfd));
-  m_strace.syscall_record_param_str(PASS_PARAM(pnpath), &npath[0], 'i');
-  m_strace.syscall_record_param_int(PASS_PARAM(nlen));
-  m_strace.syscall_record_param_int(PASS_PARAM(flags));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(odirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(popath), &opath[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(olen));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(ndirfd));
+  m_strace.syscall_record_param_path_name(PASS_PARAM(pnpath), &npath[0], 'i');
+  m_strace.syscall_record_param_uint64(PASS_PARAM(nlen));
+  m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
   m_strace.syscall_record_end(ret);
 
   return ret;

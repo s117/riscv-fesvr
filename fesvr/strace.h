@@ -30,40 +30,59 @@ public:
   }
 
   void syscall_record_begin(const char *scall_name, uint64_t scall_id) {
-    fprintf(m_output_file, "[%" PRIu64 "] %s {\n", scall_id, scall_name);
+    fprintf(m_output_file, "[%" PRIu64 "] %s (\n", scall_id, scall_name);
   }
 
   void syscall_record_end(uint64_t ret_code) {
-    fprintf(m_output_file, "} -> %" PRIi64 "\n\n", (int64_t) ret_code);
+    fprintf(m_output_file, ") -> %" PRIi64 "\n\n", (int64_t) ret_code);
   }
 
-  void syscall_record_param_int(const char *param_name, uint64_t value) {
+  void syscall_record_param_uint64(const char *param_name, uint64_t value) {
     fprintf(m_output_file, "  uint64_t %s = %" PRIu64 "\n", param_name, value);
+  }
+
+  void syscall_record_param_int64(const char *param_name, int64_t value) {
+    fprintf(m_output_file, "  int64_t %s = %" PRIi64 "\n", param_name, value);
   }
 
   void syscall_record_param_simple_ptr(const char *param_name, uintptr_t ptr_val, char io_direction) {
     const char *type_prefix;
     if (io_direction == 'i') {
-      type_prefix = "PtrIN";
+      type_prefix = "ptr_in_t";
 
     } else {
       assert(io_direction == 'o');
-      type_prefix = "PtrOUT";
+      type_prefix = "ptr_out_t";
     }
-    fprintf(m_output_file, "  %s %s = 0x%" PRIX64 "\n", type_prefix, param_name, ptr_val);
+    fprintf(m_output_file, "  %s %s = 0x%016" PRIX64 "\n", type_prefix, param_name, ptr_val);
+  }
+
+  void syscall_record_param_path_name(const char *param_name, uint64_t ptr_val, const char *ptr_dat, char io_direction) {
+    const char *type_prefix;
+    if (io_direction == 'i') {
+      type_prefix = "path_in_t";
+
+    } else {
+      assert(io_direction == 'o');
+      type_prefix = "path_out_t";
+    }
+    fprintf(
+      m_output_file, "  %s %s = 0x%016" PRIX64 "|%s|\n",
+      type_prefix, param_name, ptr_val, ptr_dat
+    );
   }
 
   void syscall_record_param_str(const char *param_name, uint64_t ptr_val, const char *ptr_dat, char io_direction) {
     const char *type_prefix;
     if (io_direction == 'i') {
-      type_prefix = "StrIN";
+      type_prefix = "str_in_t";
 
     } else {
       assert(io_direction == 'o');
-      type_prefix = "StrOUT";
+      type_prefix = "str_out_t";
     }
     fprintf(
-      m_output_file, "  %s %s = 0x%" PRIX64 "|%s|\n",
+      m_output_file, "  %s %s = 0x%016" PRIX64 "|%s|\n",
       type_prefix, param_name, ptr_val, base64_encode(ptr_dat).c_str()
     );
   }
