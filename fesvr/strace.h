@@ -34,7 +34,7 @@ public:
   }
 
   void syscall_record_end(uint64_t ret_code) {
-    fprintf(m_output_file, "} -> %" PRIu64 "\n\n", ret_code);
+    fprintf(m_output_file, "} -> %" PRIi64 "\n\n", (int64_t) ret_code);
   }
 
   void syscall_record_param_int(const char *param_name, uint64_t value) {
