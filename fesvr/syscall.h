@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include "strace.h"
 
 class syscall_t;
 typedef reg_t (syscall_t::*syscall_func_t)(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
@@ -30,6 +31,7 @@ class syscall_t : public device_t
   syscall_t(htif_t*);
   
  private:
+  strace m_strace;
   const char* identity() { return "syscall_proxy"; }
 
   htif_t* htif;
