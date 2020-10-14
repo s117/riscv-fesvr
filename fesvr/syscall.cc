@@ -329,26 +329,24 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
   return sysret_errno(chdir(buf.data()));
 }
 
-reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t count, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
+reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
-  char* buf = new char[count];
-  reg_t ret = sysret_errno(getdents64(fds.lookup(fd), (void *)buf, count));
+  std::vector<char> buf(size);
+  reg_t ret = sysret_errno(getdents64(fds.lookup(fd), &buf[0], size));
   if ((sreg_t)ret > 0)
   {
-    memif->write(dirbuf, ret, buf);
+    memif->write(dirbuf, ret, &buf[0]);
   }
-  delete[] buf;
   return ret;
 }
 
-reg_t syscall_t::sys_getrandom(reg_t buf, reg_t buflen, reg_t flags, reg_t a3, reg_t a4, reg_t a5, reg_t a6){
-  char* tmp_buf = new char[buflen];
-  reg_t ret =  sysret_errno(getrandom(tmp_buf, buflen, flags));
+reg_t syscall_t::sys_getrandom(reg_t pbuf, reg_t len, reg_t flags, reg_t a3, reg_t a4, reg_t a5, reg_t a6){
+  std::vector<char> buf(len);
+  reg_t ret =  sysret_errno(getrandom(&buf[0], len, flags));
   if ((sreg_t)ret > 0)
   {
-    memif->write(buf, ret, tmp_buf);
+    memif->write(pbuf, ret, &buf[0]);
   }
-  delete[] tmp_buf;
   return ret;
 }
 
