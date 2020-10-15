@@ -45,6 +45,10 @@ public:
     fprintf(m_output_file, "  int64_t %s = %" PRIi64 "\n", param_name, value);
   }
 
+  void syscall_record_param_fd(const char *param_name, int64_t value) {
+    fprintf(m_output_file, "  fd_t %s = %" PRIi64 "\n", param_name, value);
+  }
+
   void syscall_record_param_simple_ptr(const char *param_name, uintptr_t ptr_val, char io_direction) {
     const char *type_prefix;
     if (io_direction == 'i') {
