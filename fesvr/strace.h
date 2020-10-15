@@ -49,7 +49,6 @@ public:
     const char *type_prefix;
     if (io_direction == 'i') {
       type_prefix = "ptr_in_t";
-
     } else {
       assert(io_direction == 'o');
       type_prefix = "ptr_out_t";
@@ -61,14 +60,13 @@ public:
     const char *type_prefix;
     if (io_direction == 'i') {
       type_prefix = "path_in_t";
-
     } else {
       assert(io_direction == 'o');
       type_prefix = "path_out_t";
     }
     fprintf(
       m_output_file, "  %s %s = 0x%016" PRIX64 "|%s|\n",
-      type_prefix, param_name, ptr_val, ptr_dat
+      type_prefix, param_name, ptr_val, base64_encode(ptr_dat).c_str()
     );
   }
 
@@ -76,7 +74,6 @@ public:
     const char *type_prefix;
     if (io_direction == 'i') {
       type_prefix = "str_in_t";
-
     } else {
       assert(io_direction == 'o');
       type_prefix = "str_out_t";
