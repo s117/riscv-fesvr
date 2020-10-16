@@ -203,14 +203,19 @@ reg_t syscall_t::sys_pwrite(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4
 
 reg_t syscall_t::sys_close(reg_t fd, reg_t a1, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
-  if (close(fds.lookup(fd)) < 0)
-    return sysret_errno(-1);
-  fds.dealloc(fd);
+  auto scall_ret = close(fds.lookup(fd));
 
   m_strace.syscall_record_begin("sys_close", 57);
   m_strace.syscall_record_param_fd(PASS_PARAM(fd));
-  m_strace.syscall_record_end(0);
 
+  if (scall_ret < 0) {
+    reg_t ret = sysret_errno(-1);
+    m_strace.syscall_record_end(ret);
+    return ret;
+  }
+
+  fds.dealloc(fd);
+  m_strace.syscall_record_end(0);
   return 0;
 }
 
@@ -300,17 +305,23 @@ reg_t syscall_t::sys_openat(reg_t dirfd, reg_t pname, reg_t len, reg_t flags, re
   std::vector<char> name(len);
   memif->read(pname, len, &name[0]);
   int fd = sysret_errno(AT_SYSCALL(openat, dirfd, &name[0], flags, mode));
-  if (fd < 0)
-    return sysret_errno(-1);
-  reg_t ret = fds.alloc(fd);
 
   m_strace.syscall_record_begin("sys_openat", 56);
   m_strace.syscall_record_param_fd(PASS_PARAM(dirfd));
   m_strace.syscall_record_param_path_name("pathname", pname, &name[0], 'i');
   m_strace.syscall_record_param_int64(PASS_PARAM(flags));
   m_strace.syscall_record_param_uint64(PASS_PARAM(mode));
-  m_strace.syscall_record_end(ret);
 
+  reg_t ret;
+  if (fd < 0) {
+    ret = sysret_errno(-1);
+    m_strace.syscall_record_end(ret);
+    return ret;
+  }
+
+  ret = fds.alloc(fd);
+
+  m_strace.syscall_record_end(ret);
   return ret;
 }
 
@@ -407,6 +418,7 @@ reg_t syscall_t::sys_getcwd(reg_t pbuf, reg_t size, reg_t a2, reg_t a3, reg_t a4
 {
   std::vector<char> buf(size);
   char* ret = getcwd(&buf[0], size);
+
   m_strace.syscall_record_begin("sys_getcwd", 17);
   m_strace.syscall_record_param_simple_ptr("buf", pbuf, 'o');
   m_strace.syscall_record_param_uint64(PASS_PARAM(size));
