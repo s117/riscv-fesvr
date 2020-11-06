@@ -5,12 +5,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <termios.h>
 #include <dirent.h>
-#include <sys/random.h>
 #include <sstream>
 #include <iostream>
 
@@ -506,7 +506,7 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
 reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> buf(size);
-  reg_t ret = sysret_errno(getdents64(fds.lookup(fd), &buf[0], size));
+  reg_t ret = sysret_errno(syscall(SYS_getdents64, fds.lookup(fd), &buf[0], size));
   if ((sreg_t)ret > 0)
   {
     memif->write(dirbuf, ret, &buf[0]);
@@ -542,7 +542,7 @@ reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndi
   std::vector<char> opath(olen), npath(nlen);
   memif->read(popath, olen, &opath[0]);
   memif->read(pnpath, nlen, &npath[0]);
-  reg_t ret = sysret_errno(renameat2(fds.lookup(odirfd), int(odirfd) == RISCV_AT_FDCWD ? do_chroot(&opath[0]).c_str() : &opath[0],
+  reg_t ret = sysret_errno(syscall(SYS_renameat2, fds.lookup(odirfd), int(odirfd) == RISCV_AT_FDCWD ? do_chroot(&opath[0]).c_str() : &opath[0],
                                fds.lookup(ndirfd), int(ndirfd) == RISCV_AT_FDCWD ? do_chroot(&npath[0]).c_str() : &npath[0],
                                flags));
 
