@@ -86,6 +86,11 @@ syscall_t::syscall_t(htif_t* htif)
   fds.alloc(stdin_fd); // stdin -> stdin
   fds.alloc(stdout_fd0); // stdout -> stdout
   fds.alloc(stdout_fd1); // stderr -> stdout
+
+  // Set the seed for emulated sys_getrandom, see man DRAND48(3)
+  sys_getrandom_rand_xsubi[0] = 0xf0f0u;
+  sys_getrandom_rand_xsubi[1] = 0x0f0fu;
+  sys_getrandom_rand_xsubi[2] = 0x330eu;
 }
 
 std::string syscall_t::do_chroot(const char* fn)
@@ -517,20 +522,19 @@ reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, re
 }
 
 reg_t syscall_t::sys_getrandom(reg_t pbuf, reg_t len, reg_t flags, reg_t a3, reg_t a4, reg_t a5, reg_t a6){
-  std::vector<char> buf(len);
-  reg_t ret =  sysret_errno(getrandom(&buf[0], len, flags));
-  if ((sreg_t)ret > 0)
-  {
-    memif->write(pbuf, ret, &buf[0]);
+  std::vector<unsigned char> buf(len);
+  for (size_t i = 0; i < len; ++i){
+    buf[i] = nrand48(sys_getrandom_rand_xsubi);
   }
+  memif->write(pbuf, len, &buf[0]);
 
   m_strace.syscall_record_begin("sys_getrandom", 278);
   m_strace.syscall_record_param_simple_ptr("buf", pbuf, 'o');
   m_strace.syscall_record_param_uint64("buflen", len);
   m_strace.syscall_record_param_uint64(PASS_PARAM(flags));
-  m_strace.syscall_record_end(ret);
+  m_strace.syscall_record_end(len);
 
-  return ret;
+  return len;
 }
 
 reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndirfd, reg_t pnpath, reg_t nlen, reg_t flags)
