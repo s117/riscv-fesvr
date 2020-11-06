@@ -28,7 +28,7 @@ class syscall_t : public device_t
 {
  public:
   syscall_t(htif_t*);
-  
+
  private:
   const char* identity() { return "syscall_proxy"; }
 
@@ -36,6 +36,8 @@ class syscall_t : public device_t
   memif_t* memif;
   std::vector<syscall_func_t> table;
   fds_t fds;
+
+  uint16_t sys_getrandom_rand_xsubi[3];
 
   void handle_syscall(command_t cmd);
   void dispatch(addr_t mm);
