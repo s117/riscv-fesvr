@@ -223,7 +223,7 @@ reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a
 }
 
 #define AT_SYSCALL(syscall, fd, name, ...) \
-  (syscall(fds.lookup(fd), int(fd) == RISCV_AT_FDCWD ? do_chroot(name).c_str() : (name), __VA_ARGS__))
+  (syscall(fds.lookup(fd), do_chroot(name).c_str(), __VA_ARGS__))
 
 reg_t syscall_t::sys_openat(reg_t dirfd, reg_t pname, reg_t len, reg_t flags, reg_t mode, reg_t a5, reg_t a6)
 {
@@ -262,8 +262,8 @@ reg_t syscall_t::sys_linkat(reg_t odirfd, reg_t poname, reg_t olen, reg_t ndirfd
   std::vector<char> oname(olen), nname(nlen);
   memif->read(poname, olen, &oname[0]);
   memif->read(pnname, nlen, &nname[0]);
-  return sysret_errno(linkat(fds.lookup(odirfd), int(odirfd) == RISCV_AT_FDCWD ? do_chroot(&oname[0]).c_str() : &oname[0],
-                             fds.lookup(ndirfd), int(ndirfd) == RISCV_AT_FDCWD ? do_chroot(&nname[0]).c_str() : &nname[0],
+  return sysret_errno(linkat(fds.lookup(odirfd), do_chroot(&oname[0]).c_str(),
+                             fds.lookup(ndirfd), do_chroot(&nname[0]).c_str(),
                              flags));
 }
 
@@ -359,9 +359,11 @@ reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndi
   std::vector<char> opath(olen), npath(nlen);
   memif->read(popath, olen, &opath[0]);
   memif->read(pnpath, nlen, &npath[0]);
-  return sysret_errno(syscall(SYS_renameat2, fds.lookup(odirfd), int(odirfd) == RISCV_AT_FDCWD ? do_chroot(&opath[0]).c_str() : &opath[0],
-                               fds.lookup(ndirfd), int(ndirfd) == RISCV_AT_FDCWD ? do_chroot(&npath[0]).c_str() : &npath[0],
-                               flags));
+  return sysret_errno(syscall(SYS_renameat2,
+    fds.lookup(odirfd), do_chroot(&opath[0]).c_str(),
+    fds.lookup(ndirfd), do_chroot(&npath[0]).c_str(),
+    flags)
+  );
 }
 
 void syscall_t::dispatch(reg_t mm)
