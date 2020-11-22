@@ -331,7 +331,9 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
       break;
   }
   assert(buf[size-1] == 0);
-  return sysret_errno(chdir(buf.data()));
+  return sysret_errno(chdir(
+    do_chroot(&buf[0]).c_str())
+  );
 }
 
 reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
