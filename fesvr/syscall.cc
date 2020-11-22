@@ -499,7 +499,9 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
       break;
   }
   assert(buf[size-1] == 0);
-  reg_t ret = sysret_errno(chdir(buf.data()));
+  reg_t ret = sysret_errno(chdir(
+    do_chroot(&buf[0]).c_str())
+  );
 
   m_strace.syscall_record_begin("sys_chdir", 49);
   m_strace.syscall_record_param_path_name(PASS_PARAM(path), buf.data(), 'i');
