@@ -29,6 +29,7 @@ class syscall_t : public device_t
 {
  public:
   syscall_t(htif_t*);
+  void enable_strace(const char* output_path);
 
  private:
   strace m_strace;

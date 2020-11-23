@@ -93,6 +93,11 @@ syscall_t::syscall_t(htif_t* htif)
   sys_getrandom_rand_xsubi[2] = 0x330eu;
 }
 
+void syscall_t::enable_strace(const char *output_path)
+{
+  m_strace.enable(output_path);
+}
+
 std::string syscall_t::do_chroot(const char* fn)
 {
   if (!htif->chroot.empty() && *fn == '/')
