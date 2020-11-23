@@ -24,6 +24,7 @@ set(
         device.h
         rfb.h
         strace.h
+        base64.h
 )
 
 set(
@@ -44,6 +45,7 @@ set(
         dummy.cc
         option_parser.cc
         term.cc
+        base64.cc
 )
 
 add_library(
@@ -54,7 +56,6 @@ add_library(
 target_include_directories(fesvr-static INTERFACE ..)
 target_include_directories(fesvr-static PUBLIC .)
 target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
-target_link_libraries(fesvr-static PUBLIC base64_lite)
 target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 
 add_library(
@@ -65,7 +66,6 @@ add_library(
 target_include_directories(fesvr-shared INTERFACE ..)
 target_include_directories(fesvr-shared PUBLIC .)
 target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
-target_link_libraries(fesvr-shared PUBLIC base64_lite)
 target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 
 
