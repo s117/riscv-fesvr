@@ -93,10 +93,38 @@ syscall_t::syscall_t(htif_t* htif)
   sys_getrandom_rand_xsubi[2] = 0x330eu;
 }
 
+syscall_t::~syscall_t()
+{
+  if (stdout_dump_fd > 0)
+    close(stdout_dump_fd);
+  if (stderr_dump_fd > 0)
+    close(stderr_dump_fd);
+}
+
 void syscall_t::enable_strace(const char *output_path)
 {
   m_strace.enable(output_path);
 }
+
+void syscall_t:: dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path)
+{
+  stdout_dump_fd = openat(AT_FDCWD, stdout_dump_path,O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  if (stdout_dump_fd <= 0) {
+    fprintf(stderr,"Fail to open [%s] for dumping stdout (%s).\n", stdout_dump_path, strerror(errno));
+    exit(-1);
+  }
+
+  if (strcmp(stderr_dump_path, stdout_dump_path) == 0){
+    stderr_dump_fd = stdout_dump_fd;
+  } else {
+    stderr_dump_fd = openat(AT_FDCWD, stderr_dump_path,O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (stderr_dump_fd <= 0) {
+      fprintf(stderr,"Fail to open [%s] for dumping stderr (%s).\n", stderr_dump_path, strerror(errno));
+      exit(-1);
+    }
+  }
+}
+
 
 std::string syscall_t::do_chroot(const char* fn)
 {
@@ -192,6 +220,11 @@ reg_t syscall_t::sys_write(reg_t fd, reg_t pbuf, reg_t len, reg_t a3, reg_t a4, 
   m_strace.syscall_record_param_uint64("count", len);
   m_strace.syscall_record_end(ret);
 
+  if ((fd == STDOUT_FILENO) && (stdout_dump_fd > 0))
+    write(stdout_dump_fd, &buf[0], len);
+  else if ((fd == STDERR_FILENO) && (stderr_dump_fd > 0))
+    write(stderr_dump_fd, &buf[0], len);
+
   return ret;
 }
 
@@ -207,6 +240,11 @@ reg_t syscall_t::sys_pwrite(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4
   m_strace.syscall_record_param_uint64("count", len);
   m_strace.syscall_record_param_int64("offset", off);
   m_strace.syscall_record_end(ret);
+
+  if ((fd == STDOUT_FILENO) && (stdout_dump_fd > 0))
+    pwrite(stdout_dump_fd, &buf[0], len, off);
+  else if ((fd == STDERR_FILENO) && (stderr_dump_fd > 0))
+    pwrite(stderr_dump_fd, &buf[0], len, off);
 
   return ret;
 }

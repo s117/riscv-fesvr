@@ -29,10 +29,14 @@ class syscall_t : public device_t
 {
  public:
   syscall_t(htif_t*);
+  ~syscall_t();
   void enable_strace(const char* output_path);
+  void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
 
  private:
   strace m_strace;
+  int stdout_dump_fd = -1;
+  int stderr_dump_fd = -1;
   const char* identity() { return "syscall_proxy"; }
 
   htif_t* htif;

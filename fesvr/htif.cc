@@ -77,6 +77,14 @@ htif_t::htif_t(const std::vector<std::string>& args)
       dynamic_devices.push_back(new rfb_t);
     else if (arg.find("+strace=") == 0)
       syscall_proxy.enable_strace(arg.c_str() + strlen("+strace="));
+    else if (arg.find("+std-dump=") == 0)
+    {
+      std::string dump_file_name(arg.c_str() + strlen("+std-dump="));
+      syscall_proxy.dump_std_out_err(
+        (dump_file_name+".stdout").c_str(),
+        (dump_file_name+".stderr").c_str()
+      );
+    }
     else if (arg.find("+rfb=") == 0)
       dynamic_devices.push_back(new rfb_t(atoi(arg.c_str() + strlen("+rfb="))));
     else if (arg.find("+disk=") == 0)
