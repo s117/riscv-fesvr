@@ -23,6 +23,8 @@ set(
         term.h
         device.h
         rfb.h
+        strace.h
+        base64.h
 )
 
 set(
@@ -43,6 +45,7 @@ set(
         dummy.cc
         option_parser.cc
         term.cc
+        base64.cc
 )
 
 add_library(

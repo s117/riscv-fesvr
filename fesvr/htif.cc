@@ -75,6 +75,8 @@ htif_t::htif_t(const std::vector<std::string>& args)
   {
     if (arg == "+rfb")
       dynamic_devices.push_back(new rfb_t);
+    else if (arg.find("+strace=") == 0)
+      syscall_proxy.enable_strace(arg.c_str() + strlen("+strace="));
     else if (arg.find("+rfb=") == 0)
       dynamic_devices.push_back(new rfb_t(atoi(arg.c_str() + strlen("+rfb="))));
     else if (arg.find("+disk=") == 0)
