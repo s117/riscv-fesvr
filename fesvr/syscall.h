@@ -7,13 +7,13 @@
 #include <vector>
 #include <string>
 #include <map>
-#include "strace.h"
 
 class syscall_t;
 typedef reg_t (syscall_t::*syscall_func_t)(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
 
 class htif_t;
 class memif_t;
+class strace;
 
 class fds_t
 {
@@ -34,7 +34,7 @@ class syscall_t : public device_t
   void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
 
  private:
-  strace m_strace;
+  strace* m_strace;
   int stdout_dump_fd = -1;
   int stderr_dump_fd = -1;
   const char* identity() { return "syscall_proxy"; }
