@@ -14,10 +14,12 @@ typedef reg_t (syscall_t::*syscall_func_t)(reg_t, reg_t, reg_t, reg_t, reg_t, re
 class htif_t;
 class memif_t;
 class strace;
+class target_cwd;
 
 class fds_t
 {
  public:
+  target_cwd* cwd_info;
   reg_t alloc(int fd);
   void dealloc(reg_t fd);
   int lookup(reg_t fd);
@@ -32,9 +34,11 @@ class syscall_t : public device_t
   ~syscall_t();
   void enable_strace(const char* output_path);
   void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
+  void init_target_cwd(const char* cwd);
 
  private:
   strace* m_strace;
+  target_cwd* m_target_cwd;
   int stdout_dump_fd = -1;
   int stderr_dump_fd = -1;
   const char* identity() { return "syscall_proxy"; }
@@ -74,6 +78,8 @@ class syscall_t : public device_t
   reg_t sys_getdents64(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_getrandom(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_renameat2(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
+
+  friend target_cwd;
 };
 
 #endif

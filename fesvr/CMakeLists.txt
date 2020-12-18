@@ -25,6 +25,7 @@ set(
         rfb.h
         strace.h
         base64.h
+        target_cwd.h
 )
 
 set(
@@ -46,6 +47,7 @@ set(
         option_parser.cc
         term.cc
         base64.cc
+        target_cwd.cc
 )
 
 add_library(

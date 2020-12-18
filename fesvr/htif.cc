@@ -47,7 +47,7 @@ void htif_t::set_chroot(const char* where)
       || getcwd(buf2, sizeof(buf2)) == NULL
       || chdir(buf1) != 0)
   {
-    printf("could not chroot to %s\n", chroot.c_str());
+    printf("could not chroot to [%s]\n", where);
     exit(-1);
   }
 
@@ -70,6 +70,7 @@ htif_t::htif_t(const std::vector<std::string>& args)
 
   hargs.insert(hargs.begin(), args.begin(), args.begin() + i);
   targs.insert(targs.begin(), args.begin() + i, args.end());
+  std::string target_init_cwd;
 
   for (auto& arg : hargs)
   {
@@ -93,7 +94,14 @@ htif_t::htif_t(const std::vector<std::string>& args)
       sig_file = arg.c_str() + strlen("+signature=");
     else if (arg.find("+chroot=") == 0)
       set_chroot(arg.substr(strlen("+chroot=")).c_str());
+    else if (arg.find("+target-cwd=") == 0)
+      target_init_cwd = arg.substr(strlen("+target-cwd="));
   }
+
+  if (target_init_cwd.empty())
+    syscall_proxy.init_target_cwd(nullptr);
+  else
+    syscall_proxy.init_target_cwd(target_init_cwd.c_str());
 
   device_list.register_device(&syscall_proxy);
   device_list.register_device(&bcd);

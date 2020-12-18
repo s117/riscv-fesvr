@@ -75,6 +75,7 @@ class htif_t
 
   friend class memif_t;
   friend class syscall_t;
+  friend class target_cwd;
 };
 
 #endif // __HTIF_H

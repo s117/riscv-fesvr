@@ -14,6 +14,7 @@
 #include <sstream>
 #include <iostream>
 #include "strace.h"
+#include "target_cwd.h"
 
 using namespace std::placeholders;
 
@@ -102,6 +103,7 @@ syscall_t::~syscall_t()
   if (stderr_dump_fd > 0)
     close(stderr_dump_fd);
   delete m_strace;
+  delete m_target_cwd;
 }
 
 void syscall_t::enable_strace(const char *output_path)
@@ -128,6 +130,18 @@ void syscall_t:: dump_std_out_err(const char* stdout_dump_path, const char* stde
   }
 }
 
+void syscall_t::init_target_cwd(const char* cwd)
+{
+  m_target_cwd = new target_cwd(this);
+  if (cwd) {
+    if (m_target_cwd->target_chdir(cwd) != 0) {
+      fprintf(stderr, "Fail to set target cwd (%s) - %s\n", strerror(errno), cwd);
+      exit(-1);
+    }
+  }
+
+  fds.cwd_info = m_target_cwd;
+}
 
 std::string syscall_t::do_chroot(const char* fn)
 {
@@ -326,13 +340,16 @@ reg_t syscall_t::sys_ftruncate(reg_t fd, reg_t len, reg_t a2, reg_t a3, reg_t a4
   return ret;
 }
 
+#define AT_SYSCALL(syscall, fd, name, ...) \
+  (syscall(fds.lookup(fd), do_chroot(name).c_str(), __VA_ARGS__))
+
 reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> name(len);
   memif->read(pname, len, &name[0]);
 
   struct stat buf;
-  reg_t ret = sysret_errno(lstat(do_chroot(&name[0]).c_str(), &buf));
+  reg_t ret = sysret_errno(AT_SYSCALL(fstatat, RISCV_AT_FDCWD, &name[0], &buf, AT_SYMLINK_NOFOLLOW));
   riscv_stat rbuf(buf);
   if (ret != (reg_t)-1)
   {
@@ -347,9 +364,6 @@ reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a
 
   return ret;
 }
-
-#define AT_SYSCALL(syscall, fd, name, ...) \
-  (syscall(fds.lookup(fd), do_chroot(name).c_str(), __VA_ARGS__))
 
 reg_t syscall_t::sys_openat(reg_t dirfd, reg_t pname, reg_t len, reg_t flags, reg_t mode, reg_t a5, reg_t a6)
 {
@@ -468,7 +482,7 @@ reg_t syscall_t::sys_mkdirat(reg_t dirfd, reg_t pname, reg_t len, reg_t mode, re
 reg_t syscall_t::sys_getcwd(reg_t pbuf, reg_t size, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> buf(size);
-  char* ret = getcwd(&buf[0], size);
+  char* ret = m_target_cwd->target_getcwd(&buf[0], size);
 
   m_strace->syscall_record_begin("sys_getcwd", 17);
   m_strace->syscall_record_param_simple_ptr("buf", pbuf, 'o');
@@ -480,7 +494,7 @@ reg_t syscall_t::sys_getcwd(reg_t pbuf, reg_t size, reg_t a2, reg_t a3, reg_t a4
     return r;
   }
 
-  std::string tmp = undo_chroot(&buf[0]);
+  std::string tmp = &buf[0];
   if (size <= tmp.size()){
     reg_t r = -ENOMEM;
     m_strace->syscall_record_end(r);
@@ -540,9 +554,7 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
       break;
   }
   assert(buf[size-1] == 0);
-  reg_t ret = sysret_errno(chdir(
-    do_chroot(&buf[0]).c_str())
-  );
+  reg_t ret = sysret_errno(m_target_cwd->target_chdir(&buf[0]));
 
   m_strace->syscall_record_begin("sys_chdir", 49);
   m_strace->syscall_record_param_path_name(PASS_PARAM(path), buf.data(), 'i');
@@ -642,6 +654,6 @@ void fds_t::dealloc(reg_t fd)
 int fds_t::lookup(reg_t fd)
 {
   if (int(fd) == RISCV_AT_FDCWD)
-    return AT_FDCWD;
+    return cwd_info->get_fd_cwd();
   return fd >= fds.size() ? -1 : fds[fd];
 }
