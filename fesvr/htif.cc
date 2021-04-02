@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <signal.h>
+#include "syscall_bypass.h"
 
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
@@ -56,12 +57,12 @@ void htif_t::set_chroot(const char* where)
 
 htif_t::htif_t(const std::vector<std::string>& args)
   : exitcode(0), mem(this), seqno(1), started(false), stopped(false),
-    _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0),
-    syscall_proxy(this)
+    _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0)
 {
   signal(SIGINT, &handle_signal);
   signal(SIGTERM, &handle_signal);
   signal(SIGABRT, &handle_signal); // we still want to call static destructors
+  syscall_proxy = bypassed_syscall_device_auto_factory::make_syscall_device(this);
 
   size_t i;
   for (i = 0; i < args.size(); i++)
@@ -77,11 +78,11 @@ htif_t::htif_t(const std::vector<std::string>& args)
     if (arg == "+rfb")
       dynamic_devices.push_back(new rfb_t);
     else if (arg.find("+strace=") == 0)
-      syscall_proxy.enable_strace(arg.c_str() + strlen("+strace="));
+      syscall_proxy->enable_strace(arg.c_str() + strlen("+strace="));
     else if (arg.find("+std-dump=") == 0)
     {
       std::string dump_file_name(arg.c_str() + strlen("+std-dump="));
-      syscall_proxy.dump_std_out_err(
+      syscall_proxy->dump_std_out_err(
         (dump_file_name+".stdout").c_str(),
         (dump_file_name+".stderr").c_str()
       );
@@ -99,11 +100,11 @@ htif_t::htif_t(const std::vector<std::string>& args)
   }
 
   if (target_init_cwd.empty())
-    syscall_proxy.init_target_cwd(nullptr);
+    syscall_proxy->init_target_cwd(nullptr);
   else
-    syscall_proxy.init_target_cwd(target_init_cwd.c_str());
+    syscall_proxy->init_target_cwd(target_init_cwd.c_str());
 
-  device_list.register_device(&syscall_proxy);
+  device_list.register_device(syscall_proxy);
   device_list.register_device(&bcd);
   for (auto d : dynamic_devices)
     device_list.register_device(d);
@@ -318,7 +319,7 @@ int htif_t::run()
     {
       if (auto tohost = write_cr(coreid, 30, 0))
       {
-        command_t cmd(this, tohost, fromhost_callbacks[coreid]);
+        command_t cmd(this, tohost, fromhost_callbacks[coreid], coreid);
         device_list.handle_command(cmd);
       }
 

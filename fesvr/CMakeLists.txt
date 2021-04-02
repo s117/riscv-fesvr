@@ -26,6 +26,7 @@ set(
         strace.h
         base64.h
         target_cwd.h
+        syscall_bypass.h
 )
 
 set(
@@ -48,6 +49,7 @@ set(
         term.cc
         base64.cc
         target_cwd.cc
+        syscall_bypass.cc
 )
 
 add_library(

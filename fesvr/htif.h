@@ -62,7 +62,7 @@ class htif_t
   addr_t sig_len; // torture
 
   device_list_t device_list;
-  syscall_t syscall_proxy;
+  syscall_t* syscall_proxy;
   bcd_t bcd;
   std::vector<device_t*> dynamic_devices;
 
@@ -76,6 +76,8 @@ class htif_t
   friend class memif_t;
   friend class syscall_t;
   friend class target_cwd;
+  friend class syscall_main_t;
+  friend class syscall_mirror_t;
 };
 
 #endif // __HTIF_H

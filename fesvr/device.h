@@ -13,14 +13,15 @@ class command_t
 {
  public:
   typedef std::function<void(uint64_t)> callback_t;
-  command_t(htif_t* htif, uint64_t tohost, callback_t cb)
-    : _htif(htif), tohost(tohost), cb(cb) {}
+  command_t(htif_t* htif, uint64_t tohost, callback_t cb, uint32_t coreid)
+    : _htif(htif), tohost(tohost), cb(cb), coreid(coreid) {}
 
   htif_t* htif() { return _htif; }
   uint8_t device() { return tohost >> 56; }
   uint8_t cmd() { return tohost >> 48; }
   uint64_t payload() { return tohost << 16 >> 16; }
   void respond(uint64_t resp) { cb((tohost >> 48 << 48) | (resp << 16 >> 16)); }
+  uint32_t get_coreid() { return coreid; };
 
   static const size_t MAX_COMMANDS = 256;
   static const size_t MAX_DEVICES = 256;
@@ -29,6 +30,7 @@ class command_t
   htif_t* _htif;
   uint64_t tohost;
   callback_t cb;
+  uint32_t coreid;
 };
 
 class device_t

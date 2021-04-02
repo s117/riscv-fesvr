@@ -80,6 +80,8 @@ class syscall_t : public device_t
   reg_t sys_renameat2(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
 
   friend target_cwd;
+  friend class syscall_main_t;
+  friend class syscall_mirror_t;
 };
 
 #endif
