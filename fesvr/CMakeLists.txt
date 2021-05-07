@@ -1,5 +1,7 @@
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+endif ()
 
 if (NOT DEFINED AC_CONFIGURE_PREFIX)
     message(FATAL_ERROR "Variable AC_CONFIGURE_PREFIX is not set, give it a value so the macro PREFIX can be determined")
@@ -60,7 +62,12 @@ add_library(
 target_include_directories(fesvr-static INTERFACE ..)
 target_include_directories(fesvr-static PUBLIC .)
 target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
-target_link_libraries(fesvr-static PUBLIC Threads::Threads)
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    target_link_libraries(fesvr-static PUBLIC Threads::Threads)
+else ()
+    target_link_libraries(fesvr-static PUBLIC pthread)
+endif ()
+
 
 add_library(
         fesvr-shared SHARED
@@ -70,8 +77,11 @@ add_library(
 target_include_directories(fesvr-shared INTERFACE ..)
 target_include_directories(fesvr-shared PUBLIC .)
 target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
-target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
-
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
+else ()
+    target_link_libraries(fesvr-shared PUBLIC pthread)
+endif ()
 
 add_executable(elf2hex elf2hex.cc)
 target_link_libraries(elf2hex fesvr-static)
