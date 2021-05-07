@@ -74,6 +74,12 @@ void syscall_mirror_t::syscall_handler_mirror(command_t cmd) {
   syscall_service_sequence_t::free(service_seq);
 }
 
+void syscall_mirror_t::enable_strace(const char *output_path) {}
+
+void syscall_mirror_t::dump_std_out_err(const char *stdout_dump_path, const char *stderr_dump_path) {}
+
+void syscall_mirror_t::init_target_cwd(const char *cwd) {}
+
 syscall_main_t::syscall_main_t(htif_t *htif) : syscall_t(htif), memif_tap(htif, *this) {
   this->memif = &memif_tap;
   register_command(

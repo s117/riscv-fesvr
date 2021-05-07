@@ -32,9 +32,9 @@ class syscall_t : public device_t
  public:
   syscall_t(htif_t*);
   ~syscall_t();
-  void enable_strace(const char* output_path);
-  void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
-  void init_target_cwd(const char* cwd);
+  virtual void enable_strace(const char* output_path);
+  virtual void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
+  virtual void init_target_cwd(const char* cwd);
 
  private:
   strace* m_strace;

@@ -111,7 +111,7 @@ void syscall_t::enable_strace(const char *output_path)
   m_strace->enable(output_path);
 }
 
-void syscall_t:: dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path)
+void syscall_t::dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path)
 {
   stdout_dump_fd = openat(AT_FDCWD, stdout_dump_path,O_WRONLY | O_CREAT | O_TRUNC, 0666);
   if (stdout_dump_fd <= 0) {

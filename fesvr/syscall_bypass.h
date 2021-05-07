@@ -103,6 +103,12 @@ public:
   void notify_syscall_sequence(syscall_service_sequence_t *new_seq);
 
   void syscall_handler_mirror(command_t cmd);
+
+  void enable_strace(const char *output_path) override;
+
+  void dump_std_out_err(const char *stdout_dump_path, const char *stderr_dump_path) override;
+
+  void init_target_cwd(const char *cwd) override;
 };
 
 class syscall_main_t : public syscall_t, public memif_tap_listener_t {
