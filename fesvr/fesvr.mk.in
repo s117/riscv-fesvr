@@ -17,6 +17,7 @@ fesvr_hdrs = \
 	rfb.h \
 	base64.h \
 	target_cwd.h \
+	syscall_bypass.h \
 
 fesvr_srcs = \
 	elfloader.cc \
@@ -37,6 +38,7 @@ fesvr_srcs = \
 	term.cc \
 	base64.cc \
 	target_cwd.cc \
+	syscall_bypass.cc \
 
 fesvr_install_prog_srcs = \
   elf2hex.cc \
