@@ -3,8 +3,8 @@ if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     find_package(Threads REQUIRED)
 endif ()
 
-if (NOT DEFINED AC_CONFIGURE_PREFIX)
-    message(FATAL_ERROR "Variable AC_CONFIGURE_PREFIX is not set, give it a value so the macro PREFIX can be determined")
+if (NOT DEFINED PREFIX)
+    message(FATAL_ERROR "Variable PREFIX is not set, give it a value so the macro PREFIX can be determined")
 endif ()
 
 set(
@@ -61,7 +61,7 @@ add_library(
 )
 target_include_directories(fesvr-static INTERFACE ..)
 target_include_directories(fesvr-static PUBLIC .)
-target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
+target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${PREFIX}\"")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 else ()
@@ -76,7 +76,7 @@ add_library(
 )
 target_include_directories(fesvr-shared INTERFACE ..)
 target_include_directories(fesvr-shared PUBLIC .)
-target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${AC_CONFIGURE_PREFIX}\"")
+target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${PREFIX}\"")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 else ()
