@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <sstream>
 #include <iostream>
+#include <stdio.h>
 #include "strace.h"
 #include "target_cwd.h"
 
@@ -565,6 +566,11 @@ reg_t syscall_t::sys_chdir(reg_t path, reg_t size, reg_t a2, reg_t a3, reg_t a4,
 
 reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
 {
+#if defined(__APPLE__) && defined(__MACH__)
+  // Mach kernel doesn't have this syscall
+  fputs("Warning: FESVR cannot service SYS_getdents64 on macOS!\n", stderr);
+  return -ENOSYS;
+#else
   std::vector<char> buf(size);
   reg_t ret = sysret_errno(syscall(SYS_getdents64, fds.lookup(fd), &buf[0], size));
   if ((sreg_t)ret > 0)
@@ -579,6 +585,7 @@ reg_t syscall_t::sys_getdents64(reg_t fd, reg_t dirbuf, reg_t size, reg_t a3, re
   m_strace->syscall_record_end(ret);
 
   return ret;
+#endif
 }
 
 reg_t syscall_t::sys_getrandom(reg_t pbuf, reg_t len, reg_t flags, reg_t a3, reg_t a4, reg_t a5, reg_t a6){
@@ -599,6 +606,11 @@ reg_t syscall_t::sys_getrandom(reg_t pbuf, reg_t len, reg_t flags, reg_t a3, reg
 
 reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndirfd, reg_t pnpath, reg_t nlen, reg_t flags)
 {
+#if defined(__APPLE__) && defined(__MACH__)
+  // Mach kernel doesn't have this syscall
+  fputs("Warning: FESVR cannot service SYS_renameat2 on macOS!\n", stderr);
+  return -ENOSYS;
+#else
   std::vector<char> opath(olen), npath(nlen);
   memif->read(popath, olen, &opath[0]);
   memif->read(pnpath, nlen, &npath[0]);
@@ -616,6 +628,7 @@ reg_t syscall_t::sys_renameat2(reg_t odirfd, reg_t popath, reg_t olen, reg_t ndi
   m_strace->syscall_record_end(ret);
 
   return ret;
+#endif
 }
 
 void syscall_t::dispatch(reg_t mm)

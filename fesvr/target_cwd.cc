@@ -9,6 +9,26 @@
 //#define _DEBUG_MSG(...) fprintf(stderr, __VA_ARGS__)
 #define _DEBUG_MSG(...)
 
+#if defined(__APPLE__) && defined(__MACH__)
+/*
+ * Reverse memchr()
+ * Find the last occurrence of 'c' in the buffer 's' of size 'n'.
+ * (macOS doesn't provide this function)
+ */
+static void *memrchr(const void *s, int c, size_t n) {
+    const unsigned char *cp;
+
+    if (n != 0) {
+       cp = (unsigned char *)s + n;
+       do {
+           if (*(--cp) == (unsigned char)c)
+               return (void *)cp;
+       } while (--n != 0);
+    }
+    return (void *)0;
+}
+#endif
+
 static char *normalize_path(const char *pwd, const char *src, char *res) {
   size_t res_len;
   size_t src_len = strlen(src);
