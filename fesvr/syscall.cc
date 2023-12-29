@@ -71,6 +71,7 @@ syscall_t::syscall_t(htif_t* htif)
   table[35] = &syscall_t::sys_unlinkat;
   table[34] = &syscall_t::sys_mkdirat;
   table[17] = &syscall_t::sys_getcwd;
+  table[78] = &syscall_t::sys_readlinkat;
   table[67] = &syscall_t::sys_pread;
   table[68] = &syscall_t::sys_pwrite;
   table[2011] = &syscall_t::sys_getmainvars;
@@ -507,6 +508,47 @@ reg_t syscall_t::sys_getcwd(reg_t pbuf, reg_t size, reg_t a2, reg_t a3, reg_t a4
   reg_t r = tmp.size() + 1;
   m_strace->syscall_record_end(r);
   return r;
+}
+
+reg_t syscall_t::sys_readlinkat(reg_t dirfd, reg_t pname, reg_t len, reg_t pbuf, reg_t bufsiz, reg_t a5, reg_t a6)
+{
+  std::vector<char> name(len);
+  memif->read(pname, len, &name[0]);
+  m_strace->syscall_record_begin("sys_readlinkat", 78);
+  m_strace->syscall_record_param_fd(PASS_PARAM(dirfd));
+  m_strace->syscall_record_param_path_name("pathname", pname, &name[0], 'i');
+  m_strace->syscall_record_param_simple_ptr("buf", pbuf, 'o');
+  m_strace->syscall_record_param_uint64("bufsiz", len);
+  std::vector<char> path_buf(PATH_MAX + 1);
+  sreg_t ret = sysret_errno(AT_SYSCALL(readlinkat, dirfd, &name[0], &path_buf[0], PATH_MAX));
+
+  if (ret > 0)
+  {
+    assert(ret <= PATH_MAX);
+
+    // readlinkat doesn't null-terminate the output path string
+    path_buf[ret] = '\0';
+
+    // only do path conversion for absolute symlink
+    std::string target_path;
+    if (path_buf[0] == '/')
+      target_path = undo_chroot(&path_buf[0]);
+    else
+      target_path = &path_buf[0];
+
+    // silently truncate the output if the receiving buffer is not large enough
+    size_t write_size = target_path.size();
+    ret = write_size;
+    if (bufsiz < target_path.size()) {
+      write_size = bufsiz;
+      ret = -EFAULT;
+    }
+
+    memif->write(pbuf, write_size, &target_path[0]);
+  }
+
+  m_strace->syscall_record_end(ret);
+  return ret;
 }
 
 reg_t syscall_t::sys_getmainvars(reg_t pbuf, reg_t limit, reg_t a2, reg_t a3, reg_t a4, reg_t a5, reg_t a6)
