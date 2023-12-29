@@ -14,6 +14,7 @@ Build Steps
 Execute the following commands to install the library, assuming you've
 declared the RISCV environment variable to point to the RISC-V install path:
 
+    $ ./scripts/autogen.sh
     $ mkdir build
     $ cd build
     $ ../configure --prefix=$RISCV
