@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <signal.h>
+#include <inttypes.h>
 #include "syscall_bypass.h"
 
 /* Attempt to determine the execution prefix automatically.  autoconf
@@ -86,6 +87,10 @@ htif_t::htif_t(const std::vector<std::string>& args)
         (dump_file_name+".stdout").c_str(),
         (dump_file_name+".stderr").c_str()
       );
+    }
+    else if (arg.find("+final-state-dump=") == 0)
+    {
+      this->set_state_dump_path(arg.c_str() + strlen("+final-state-dump="));
     }
     else if (arg.find("+rfb=") == 0)
       dynamic_devices.push_back(new rfb_t(atoi(arg.c_str() + strlen("+rfb="))));
@@ -235,6 +240,8 @@ void htif_t::stop()
     sigs.close();
   }
 
+  dump_final_state();
+
   for (uint32_t i = 0, nc = num_cores(); i < nc; i++)
     write_cr(i, 29, 1);
 
@@ -358,4 +365,45 @@ bool htif_t::done()
 int htif_t::exit_code()
 {
   return exitcode >> 1;
+}
+
+void htif_t::set_state_dump_path(std::string dump_path)
+{
+  if (this->stats_dump_fd)
+    fclose(this->stats_dump_fd);
+
+  this->stats_dump_fd = fopen(dump_path.c_str(), "w");
+  if (this->stats_dump_fd == NULL)
+  {
+    throw std::runtime_error(
+        "Fail to create state dump file at \"" + dump_path + "\", reason: " + std::string(std::strerror(errno)));
+  }
+}
+
+// dump states to this->stats_dump_fd in JSON format
+void htif_t::dump_final_state()
+{
+  if (this->stats_dump_fd == NULL)
+    return;
+
+  const size_t n_cpus = num_cores();
+  fprintf(this->stats_dump_fd, "{\n");
+  fprintf(this->stats_dump_fd, "  \"core_state\": [\n");
+  for (size_t n = 0; n < n_cpus; n++)
+  {
+    fprintf(this->stats_dump_fd, "    {\n");
+
+    // dump instret
+    uint64_t instret = read_cr(n, 6);
+    fprintf(this->stats_dump_fd, "      \"instret\": %" PRIu64 "\n", instret);
+
+    if (n == n_cpus - 1)
+      fprintf(this->stats_dump_fd, "    }\n");
+    else
+      fprintf(this->stats_dump_fd, "    },\n");
+  }
+  fprintf(this->stats_dump_fd, "  ]\n");
+  fprintf(this->stats_dump_fd, "}\n");
+  fclose(this->stats_dump_fd);
+  this->stats_dump_fd = NULL;
 }

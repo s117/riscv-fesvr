@@ -30,6 +30,11 @@ class htif_t
   virtual uint32_t mem_mb();
 
  protected:
+  FILE* stats_dump_fd = NULL;
+
+  void set_state_dump_path(std::string dump_path);
+  void dump_final_state();
+
   virtual void read_chunk(addr_t taddr, size_t len, void* dst);
   virtual void write_chunk(addr_t taddr, size_t len, const void* src);
 
