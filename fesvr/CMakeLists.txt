@@ -1,4 +1,5 @@
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    find_package(ZLIB)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
 endif ()
@@ -25,6 +26,7 @@ set(
         term.h
         device.h
         rfb.h
+        gzstream.h
         strace.h
         base64.h
         target_cwd.h
@@ -49,6 +51,7 @@ set(
         dummy.cc
         option_parser.cc
         term.cc
+        gzstream.cc
         base64.cc
         target_cwd.cc
         syscall_bypass.cc
@@ -63,8 +66,10 @@ target_include_directories(fesvr-static INTERFACE ..)
 target_include_directories(fesvr-static PUBLIC .)
 target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${PREFIX}\"")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    target_link_libraries(fesvr-static ZLIB::ZLIB)
     target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 else ()
+    target_link_libraries(fesvr-static z)
     target_link_libraries(fesvr-static PUBLIC pthread)
 endif ()
 
@@ -78,8 +83,10 @@ target_include_directories(fesvr-shared INTERFACE ..)
 target_include_directories(fesvr-shared PUBLIC .)
 target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${PREFIX}\"")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    target_link_libraries(fesvr-shared ZLIB::ZLIB)
     target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 else ()
+    target_link_libraries(fesvr-shared z)
     target_link_libraries(fesvr-shared PUBLIC pthread)
 endif ()
 
