@@ -96,8 +96,36 @@ int gzstreambuf::underflow() { // used for input buffer only
           buffer + 4,                 // read position
           buffer + 4 + num);          // end of buffer
 
+    buffer_egptr_pos += num;
+
     // return next character
     return * reinterpret_cast<unsigned char *>( gptr());    
+}
+
+std::streampos gzstreambuf::seekg(std::streampos pos) {
+    if (!(mode & std::ios::in) || !opened) return -1;
+    const long desired_pos = pos;
+    if (desired_pos < 0) return -1;
+    const long buffer_eback_pos = buffer_egptr_pos - (egptr() - eback());
+    if (buffer_eback_pos <= desired_pos && desired_pos < buffer_egptr_pos) {
+        // new seek position has been read to the buffer
+        long new_gptr_offset = desired_pos - buffer_eback_pos;
+        setg(eback(), eback() + new_gptr_offset, egptr());
+        return desired_pos;
+    }
+
+    // new seek position is not in the buffer
+    const long gzseek_pos = gzseek(file, pos, SEEK_SET);
+    if (gzseek_pos < 0) return -1;
+    setg(buffer + 4, buffer + 4, buffer + 4);
+    buffer_egptr_pos = gzseek_pos;
+    return gzseek_pos;
+}
+
+std::streampos gzstreambuf::tellg() {
+    if (!(mode & std::ios::in) || !opened) return -1;
+    const ssize_t unread_bytes = egptr() - gptr();
+    return buffer_egptr_pos - std::streampos(unread_bytes);
 }
 
 int gzstreambuf::flush_buffer() {
