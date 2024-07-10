@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
+find_package(ZLIB)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -25,6 +26,7 @@ set(
         term.h
         device.h
         rfb.h
+        gzstream.h
         strace.h
         base64.h
         target_cwd.h
@@ -49,6 +51,7 @@ set(
         dummy.cc
         option_parser.cc
         term.cc
+        gzstream.cc
         base64.cc
         target_cwd.cc
         syscall_bypass.cc
@@ -68,6 +71,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-static PUBLIC fesvr-interface)
+target_link_libraries(fesvr-static PUBLIC ZLIB::ZLIB)
 target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 
 add_library(
@@ -76,6 +80,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-shared PUBLIC fesvr-interface)
+target_link_libraries(fesvr-shared PUBLIC ZLIB::ZLIB)
 target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 
 add_executable(elf2hex elf2hex.cc)

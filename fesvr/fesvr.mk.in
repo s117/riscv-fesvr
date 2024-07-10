@@ -15,6 +15,7 @@ fesvr_hdrs = \
 	term.h \
 	device.h \
 	rfb.h \
+	gzstream.h \
 	base64.h \
 	target_cwd.h \
 	syscall_bypass.h \
@@ -36,6 +37,7 @@ fesvr_srcs = \
 	dummy.cc \
 	option_parser.cc \
 	term.cc \
+	gzstream.cc \
 	base64.cc \
 	target_cwd.cc \
 	syscall_bypass.cc \
