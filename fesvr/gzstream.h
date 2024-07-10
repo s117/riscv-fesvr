@@ -51,10 +51,11 @@ private:
     char             buffer[bufferSize]; // data buffer
     char             opened;             // open/close state of stream
     int              mode;               // I/O mode
+    long             buffer_egptr_pos;   // The file offset of egptr
 
     int flush_buffer();
 public:
-    gzstreambuf() : opened(0) {
+    gzstreambuf() : opened(0), buffer_egptr_pos(0) {
         setp( buffer, buffer + (bufferSize-1));
         setg( buffer + 4,     // beginning of putback area
               buffer + 4,     // read position
@@ -69,6 +70,8 @@ public:
     virtual int     overflow( int c = EOF);
     virtual int     underflow();
     virtual int     sync();
+    std::streampos  seekg(std::streampos pos);
+    std::streampos  tellg();
 };
 
 class gzstreambase : virtual public std::ios {
@@ -97,6 +100,12 @@ public:
     gzstreambuf* rdbuf() { return gzstreambase::rdbuf(); }
     void open( const char* name, int open_mode = std::ios::in) {
         gzstreambase::open( name, open_mode);
+    }
+
+    std::streampos tellg() { return buf.tellg(); }
+    igzstream &seekg(std::streampos pos) {
+        if (buf.seekg(pos) < 0) setstate(std::ios::failbit);
+        return *this;
     }
 };
 
