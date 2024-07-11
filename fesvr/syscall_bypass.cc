@@ -13,18 +13,6 @@ syscall_t *bypassed_syscall_device_auto_factory::make_syscall_device(htif_t *hti
   }
 }
 
-memif_tap_t::memif_tap_t(htif_t *htif, memif_tap_listener_t &listener) : memif_t(htif), m_listener(listener) {}
-
-void memif_tap_t::read(addr_t addr, size_t len, void *bytes) {
-  memif_t::read(addr, len, bytes);
-  m_listener.on_mem_read(addr, len, bytes);
-}
-
-void memif_tap_t::write(addr_t addr, size_t len, const void *bytes) {
-  memif_t::write(addr, len, bytes);
-  m_listener.on_mem_write(addr, len, bytes);
-}
-
 syscall_mirror_t::syscall_mirror_t(htif_t *htif) : syscall_t(htif) {
   cores_queued_service_seq.resize(CORE_SEQ_QUEUE_MAX);
   register_command(

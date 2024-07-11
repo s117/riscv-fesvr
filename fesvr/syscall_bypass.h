@@ -3,7 +3,7 @@
 
 #include "syscall.h"
 #include "htif.h"
-#include "memif.h"
+#include "memif_tap.h"
 #include <functional>
 #include <iostream>
 
@@ -70,26 +70,6 @@ public:
     }
     seq = nullptr;
   }
-};
-
-class memif_tap_listener_t {
-public:
-  virtual void on_mem_read(addr_t addr, size_t len, void *bytes) = 0;
-
-  virtual void on_mem_write(addr_t addr, size_t len, const void *bytes) = 0;
-};
-
-class memif_tap_t : public memif_t {
-public:
-  memif_tap_t(htif_t *htif, memif_tap_listener_t &listener);
-
-  void read(addr_t addr, size_t len, void *bytes) override;
-
-  void write(addr_t addr, size_t len, const void *bytes) override;
-
-private:
-  memif_tap_listener_t &m_listener;
-
 };
 
 class syscall_mirror_t : public syscall_t {
