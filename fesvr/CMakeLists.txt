@@ -14,6 +14,7 @@ set(
         elfloader.h
         htif.h
         memif.h
+        memif_tap.h
         syscall.h
         packet.h
         context.h
