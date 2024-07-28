@@ -15,7 +15,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <inttypes.h>
-#include "syscall_bypass.h"
+#include "device_traffic_bypass.h"
+#include "sha256.h"
 
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
@@ -56,14 +57,15 @@ void htif_t::set_chroot(const char* where)
   chroot = buf2;
 }
 
-htif_t::htif_t(const std::vector<std::string>& args)
-  : exitcode(0), mem(this), seqno(1), started(false), stopped(false),
-    _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0)
+htif_t::htif_t(const std::vector<std::string> &args)
+    : exitcode(0), mem(*this), seqno(1), started(false), stopped(false),
+      _mem_mb(0), _num_cores(0), sig_addr(0), sig_len(0), syscall_proxy(this)
 {
   signal(SIGINT, &handle_signal);
   signal(SIGTERM, &handle_signal);
   signal(SIGABRT, &handle_signal); // we still want to call static destructors
-  syscall_proxy = bypassed_syscall_device_auto_factory::make_syscall_device(this);
+
+  memset(loaded_elf_sha256, 0, sizeof(loaded_elf_sha256));
 
   size_t i;
   for (i = 0; i < args.size(); i++)
@@ -72,51 +74,130 @@ htif_t::htif_t(const std::vector<std::string>& args)
 
   hargs.insert(hargs.begin(), args.begin(), args.begin() + i);
   targs.insert(targs.begin(), args.begin() + i, args.end());
-  std::string target_init_cwd;
 
-  for (auto& arg : hargs)
+  std::deque<std::pair<std::string, std::string>> arg_devices;
+  std::string arg_target_init_cwd;
+  std::string arg_strace_output_path;
+  std::string arg_console_dump_base;
+  std::string arg_final_state_dump_path;
+  std::string arg_chroot_dir;
+  std::string arg_result_sig_file;
+  std::string arg_recorded_device_traffic_path;
+  std::string arg_device_traffic_record_path;
+  std::string arg_device_traffic_replay_path;
+
+
+  for (auto &arg: hargs)
   {
     if (arg == "+rfb")
-      dynamic_devices.push_back(new rfb_t);
-    else if (arg.find("+strace=") == 0)
-      syscall_proxy->enable_strace(arg.c_str() + strlen("+strace="));
-    else if (arg.find("+std-dump=") == 0)
-    {
-      std::string dump_file_name(arg.c_str() + strlen("+std-dump="));
-      syscall_proxy->dump_std_out_err(
-        (dump_file_name+".stdout").c_str(),
-        (dump_file_name+".stderr").c_str()
-      );
-    }
-    else if (arg.find("+final-state-dump=") == 0)
-    {
-      this->set_state_dump_path(arg.c_str() + strlen("+final-state-dump="));
-    }
+      arg_devices.emplace_back("rfb", "0");
     else if (arg.find("+rfb=") == 0)
-      dynamic_devices.push_back(new rfb_t(atoi(arg.c_str() + strlen("+rfb="))));
+      arg_devices.emplace_back("rfb", arg.substr(strlen("+rfb=")));
     else if (arg.find("+disk=") == 0)
-      dynamic_devices.push_back(new disk_t(arg.c_str() + strlen("+disk=")));
+      arg_devices.emplace_back("disk", arg.substr(strlen("+disk=")));
+    else if (arg.find("+strace=") == 0)
+      arg_strace_output_path = arg.substr(strlen("+strace="));
+    else if (arg.find("+std-dump=") == 0)
+      arg_console_dump_base = arg.substr(strlen("+std-dump="));
+    else if (arg.find("+final-state-dump=") == 0)
+      arg_final_state_dump_path = arg.substr(strlen("+final-state-dump="));
     else if (arg.find("+signature=") == 0)
-      sig_file = arg.c_str() + strlen("+signature=");
+      arg_result_sig_file = arg.substr(strlen("+signature="));
     else if (arg.find("+chroot=") == 0)
-      set_chroot(arg.substr(strlen("+chroot=")).c_str());
+      arg_chroot_dir = arg.substr(strlen("+chroot="));
     else if (arg.find("+target-cwd=") == 0)
-      target_init_cwd = arg.substr(strlen("+target-cwd="));
+      arg_target_init_cwd = arg.substr(strlen("+target-cwd="));
+    else if (arg.find("+dev-traffic-record=") == 0)
+      arg_device_traffic_record_path = arg.substr(strlen("+dev-traffic-record="));
+    else if (arg.find("+dev-traffic-replay=") == 0)
+      arg_device_traffic_replay_path = arg.substr(strlen("+dev-traffic-replay="));
   }
 
-  if (target_init_cwd.empty())
-    syscall_proxy->init_target_cwd(nullptr);
+  if (device_traffic_bypass_manager_t::has_main_composition())
+  {
+    // This FESVR instance is not the main instance, it simply replays the device traffic supplied by the main instance
+    auto &main_composition = device_traffic_bypass_manager_t::get_main_composition();
+    auto *traffic_buffer = new cmd_service_sequence_buffer_t();
+    main_composition.register_traffic_listener(*traffic_buffer);
+    auto mirror_composition = new recorded_composition_t(*this, traffic_buffer, {});
+    device_composition = mirror_composition;
+  }
   else
-    syscall_proxy->init_target_cwd(target_init_cwd.c_str());
+  {
+    // This FESVR instance is the main instance and need to go through detailed configuration.
+    if (arg_device_traffic_replay_path.empty())
+    {
+      // FESVR is launched in real device mode, requires device setup
+      auto real_device_composition = new real_composition_t(*this);
+      for (auto &dev_arg: arg_devices)
+      {
+        if (dev_arg.first == "rfb")
+          dynamic_devices.push_back(new rfb_t(atoi(dev_arg.second.c_str())));
+        else if (dev_arg.first == "disk")
+          dynamic_devices.push_back(new disk_t(dev_arg.second.c_str()));
+        else
+          throw std::runtime_error("unknown device: " + dev_arg.first);
+      }
 
-  device_list.register_device(syscall_proxy);
-  device_list.register_device(&bcd);
-  for (auto d : dynamic_devices)
-    device_list.register_device(d);
+      // strace will only work in real device mode
+      if (!arg_strace_output_path.empty())
+        syscall_proxy.enable_strace(arg_strace_output_path.c_str());
+
+      // console dump will only work in real device mode
+      if (!arg_console_dump_base.empty())
+        syscall_proxy.dump_std_out_err(
+          (arg_console_dump_base + ".stdout").c_str(),
+          (arg_console_dump_base + ".stderr").c_str());
+
+      // chroot and target-cwd only applies to real device mode
+      if (!arg_chroot_dir.empty())
+        set_chroot(arg_chroot_dir.c_str());
+      if (arg_target_init_cwd.empty())
+        syscall_proxy.init_target_cwd(nullptr);
+      else
+        syscall_proxy.init_target_cwd(arg_target_init_cwd.c_str());
+
+      real_device_composition->register_device(syscall_proxy);
+      real_device_composition->register_device(bcd);
+      for (auto d: dynamic_devices)
+        real_device_composition->register_device(*d);
+      device_composition = real_device_composition;
+    }
+    else
+    {
+      // FESVR is launched in traffic replay mode, no device setup required, but need to prepare the state of replayer
+      auto cmd_sequence_supplier = new device_traffic_replayer_t(arg_device_traffic_replay_path);
+      auto recorded_composition = new recorded_composition_t(*this, cmd_sequence_supplier, {});
+      device_composition = recorded_composition;
+    }
+    // Register this FESVR instance as the main instance
+    device_traffic_bypass_manager_t::set_main_composition(*device_composition);
+
+    // Setup final state dump
+    if (!arg_final_state_dump_path.empty())
+      this->set_state_dump_path(arg_final_state_dump_path);
+
+    // Setup signature output file
+    if (!arg_result_sig_file.empty())
+      sig_file = arg_result_sig_file;
+
+    // Setup the traffic recorder
+    if (!arg_device_traffic_record_path.empty())
+    {
+      auto recorder = new device_traffic_recorder_t(arg_device_traffic_record_path);
+      traffic_recorder = recorder;
+      device_composition->register_traffic_listener(*traffic_recorder);
+    }
+
+    // debug output
+    device_composition->register_traffic_listener(traffic_debug_listener);
+  }
 }
 
 htif_t::~htif_t()
 {
+  delete device_composition;
+  delete traffic_recorder;
   for (auto d : dynamic_devices)
     delete d;
 }
@@ -171,6 +252,7 @@ void htif_t::start()
   started = true;
 
   load_program();
+  device_composition->update_target_spec(mem_mb(), num_cores(), loaded_elf_sha256);
   reset();
 }
 
@@ -193,6 +275,7 @@ void htif_t::load_program()
     throw std::runtime_error("could not open " + targs[0]);
 
   std::map<std::string, uint64_t> symbols = load_elf(path.c_str(), &mem);
+  SHA256::sha256file(path.c_str(), nullptr, loaded_elf_sha256);
 
   // detect torture tests so we can print the memory signature at the end
   if (symbols.count("begin_signature") && symbols.count("end_signature"))
@@ -242,6 +325,10 @@ void htif_t::stop()
   }
 
   dump_final_state();
+
+  if (traffic_recorder) {
+    traffic_recorder->close();
+  }
 
   for (uint32_t i = 0, nc = num_cores(); i < nc; i++)
     write_cr(i, 29, 1);
@@ -328,10 +415,10 @@ int htif_t::run()
       if (auto tohost = write_cr(coreid, 30, 0))
       {
         command_t cmd(this, tohost, fromhost_callbacks[coreid], coreid);
-        device_list.handle_command(cmd);
+        device_composition->handle_command(cmd);
       }
 
-      device_list.tick();
+      device_composition->tick();
 
       if (!fromhost[coreid].empty())
         if (write_cr(coreid, 31, fromhost[coreid].front()) == 0)

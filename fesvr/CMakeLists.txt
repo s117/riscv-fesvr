@@ -26,12 +26,17 @@ set(
         option_parser.h
         term.h
         device.h
+        device_composition.h
+        device_traffic_forwarding.h
+        device_traffic_bypass.h
+        device_traffic_persistent.h
         rfb.h
         gzstream.h
         strace.h
         base64.h
+        crc32.h
+        sha256.h
         target_cwd.h
-        syscall_bypass.h
 )
 
 set(
@@ -40,8 +45,13 @@ set(
         htif.cc
         packet.cc
         memif.cc
+        memif_tap.cc
         syscall.cc
         device.cc
+        device_composition.cc
+        device_traffic_forwarding.cc
+        device_traffic_bypass.cc
+        device_traffic_persistent.cc
         rfb.cc
         context.cc
         htif_pthread.cc
@@ -54,8 +64,9 @@ set(
         term.cc
         gzstream.cc
         base64.cc
+        crc32.cc
+        sha256.cc
         target_cwd.cc
-        syscall_bypass.cc
 )
 
 add_library(
@@ -65,7 +76,7 @@ add_library(
 )
 target_include_directories(fesvr-static INTERFACE ..)
 target_include_directories(fesvr-static PUBLIC .)
-target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${PREFIX}\"")
+target_compile_definitions(fesvr-static PRIVATE PREFIX="${PREFIX}")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-static ZLIB::ZLIB)
     target_link_libraries(fesvr-static PUBLIC Threads::Threads)
@@ -82,7 +93,7 @@ add_library(
 )
 target_include_directories(fesvr-shared INTERFACE ..)
 target_include_directories(fesvr-shared PUBLIC .)
-target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${PREFIX}\"")
+target_compile_definitions(fesvr-shared PRIVATE PREFIX="${PREFIX}")
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-shared ZLIB::ZLIB)
     target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
@@ -102,3 +113,6 @@ target_link_libraries(fesvr-rs232 fesvr-static)
 
 add_executable(fesvr-zedboard fesvr-zedboard.cc)
 target_link_libraries(fesvr-zedboard fesvr-static)
+
+target_compile_definitions(fesvr-shared PRIVATE SCALL_TRACE_UNCOMPRESSED_OUTPUT)
+target_compile_definitions(fesvr-static PRIVATE SCALL_TRACE_UNCOMPRESSED_OUTPUT)
