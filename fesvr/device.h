@@ -31,6 +31,8 @@ class command_t
   uint64_t tohost;
   callback_t cb;
   uint32_t coreid;
+
+  friend class device_composition_t; // to enable intercepting the responding callback function
 };
 
 class device_t

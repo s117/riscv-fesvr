@@ -15,19 +15,29 @@ fesvr_hdrs = \
 	option_parser.h \
 	term.h \
 	device.h \
+	device_composition.h \
+	device_traffic_forwarding.h \
+	device_traffic_bypass.h \
+	device_traffic_persistent.h \
 	rfb.h \
 	gzstream.h \
 	base64.h \
+	crc32.h \
+	sha256.h \
 	target_cwd.h \
-	syscall_bypass.h \
 
 fesvr_srcs = \
 	elfloader.cc \
 	htif.cc \
 	packet.cc \
 	memif.cc \
+	memif_tap.cc \
 	syscall.cc \
 	device.cc \
+	device_composition.cc \
+	device_traffic_forwarding.cc \
+	device_traffic_bypass.cc \
+	device_traffic_persistent.cc \
 	rfb.cc \
 	context.cc \
 	htif_pthread.cc \
@@ -40,8 +50,9 @@ fesvr_srcs = \
 	term.cc \
 	gzstream.cc \
 	base64.cc \
+	crc32.cc \
+	sha256.cc \
 	target_cwd.cc \
-	syscall_bypass.cc \
 
 fesvr_install_prog_srcs = \
 	elf2hex.cc \

@@ -3,11 +3,13 @@
 #ifndef __HTIF_H
 #define __HTIF_H
 
-#include "memif.h"
+#include "memif_tap.h"
 #include "syscall.h"
-#include "device.h"
+#include "device_composition.h"
+#include "device_traffic_persistent.h"
 #include <string.h>
 #include <vector>
+#include <cinttypes>
 
 class htif_t
 {
@@ -52,7 +54,7 @@ class htif_t
   virtual void reset();
 
  private:
-  memif_t mem;
+  memif_tap_t mem;
   bool writezeros;
   seqno_t seqno;
   bool started;
@@ -66,10 +68,14 @@ class htif_t
   addr_t sig_addr; // torture
   addr_t sig_len; // torture
 
-  device_list_t device_list;
-  syscall_t* syscall_proxy;
+  device_composition_t* device_composition;
+  syscall_t syscall_proxy;
   bcd_t bcd;
   std::vector<device_t*> dynamic_devices;
+  uint8_t loaded_elf_sha256[256 / 8];
+  device_traffic_recorder_t* traffic_recorder;
+
+  traffic_debug_listener_t traffic_debug_listener;
 
   std::vector<char> read_buf;
   virtual packet_t read_packet(seqno_t expected_seqno);
@@ -83,6 +89,7 @@ class htif_t
   friend class target_cwd;
   friend class syscall_main_t;
   friend class syscall_mirror_t;
+  friend class device_composition_t;
 };
 
 #endif // __HTIF_H
