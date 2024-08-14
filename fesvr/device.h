@@ -13,15 +13,15 @@ class command_t
 {
  public:
   typedef std::function<void(uint64_t)> callback_t;
-  command_t(htif_t* htif, uint64_t tohost, callback_t cb, uint32_t coreid)
-    : _htif(htif), tohost(tohost), cb(cb), coreid(coreid) {}
+  command_t(htif_t* htif, uint64_t tohost, callback_t cb, uint32_t hart_id)
+    : _htif(htif), tohost(tohost), cb(cb), hart_id(hart_id) {}
 
   htif_t* htif() { return _htif; }
   uint8_t device() { return tohost >> 56; }
   uint8_t cmd() { return tohost >> 48; }
   uint64_t payload() { return tohost << 16 >> 16; }
   void respond(uint64_t resp) { cb((tohost >> 48 << 48) | (resp << 16 >> 16)); }
-  uint32_t get_coreid() { return coreid; };
+  uint32_t get_hart_id() { return hart_id; };
 
   static const size_t MAX_COMMANDS = 256;
   static const size_t MAX_DEVICES = 256;
@@ -30,7 +30,7 @@ class command_t
   htif_t* _htif;
   uint64_t tohost;
   callback_t cb;
-  uint32_t coreid;
+  uint32_t hart_id;
 
   friend class device_composition_t; // to enable intercepting the responding callback function
 };

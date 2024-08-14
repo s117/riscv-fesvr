@@ -1,3 +1,5 @@
 AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR([libpthread is required])])
 
 AC_CHECK_LIB(z, gzread, [], [AC_MSG_ERROR([libz is required])])
+
+AC_CHECK_LIB(crypto, EVP_get_digestbyname, [], [AC_MSG_ERROR([OpenSSL::Crypto is required])])

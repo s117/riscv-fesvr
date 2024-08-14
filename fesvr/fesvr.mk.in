@@ -1,4 +1,5 @@
 fesvr_hdrs = \
+	fesvr_logging.h \
 	elf.h \
 	elfloader.h \
 	htif.h \
@@ -15,15 +16,20 @@ fesvr_hdrs = \
 	option_parser.h \
 	term.h \
 	device.h \
+	hart_execution_reg.h \
+	hart_execution_controller.h \
 	device_composition.h \
-	device_traffic_forwarding.h \
+	device_traffic_capture.h \
 	device_traffic_bypass.h \
 	device_traffic_persistent.h \
+	checkpoint_format.h \
+	ckpt_desc_reader.h \
 	rfb.h \
 	gzstream.h \
+	strace.h \
 	base64.h \
-	crc32.h \
-	sha256.h \
+	checksum.h \
+	crypto_digest.h \
 	target_cwd.h \
 
 fesvr_srcs = \
@@ -34,10 +40,12 @@ fesvr_srcs = \
 	memif_tap.cc \
 	syscall.cc \
 	device.cc \
+	hart_execution_controller.cc \
 	device_composition.cc \
-	device_traffic_forwarding.cc \
+	device_traffic_capture.cc \
 	device_traffic_bypass.cc \
 	device_traffic_persistent.cc \
+	ckpt_desc_reader.cc \
 	rfb.cc \
 	context.cc \
 	htif_pthread.cc \
@@ -50,8 +58,8 @@ fesvr_srcs = \
 	term.cc \
 	gzstream.cc \
 	base64.cc \
-	crc32.cc \
-	sha256.cc \
+	crypto_digest.cc \
+	checksum.cc \
 	target_cwd.cc \
 
 fesvr_install_prog_srcs = \
