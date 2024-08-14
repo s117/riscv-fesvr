@@ -1,6 +1,7 @@
 // Classes to support device traffic capturing
 
-#include "device_traffic_forwarding.h"
+#include "device_traffic_capture.h"
+#include "device_composition.h"
 
 device_traffic_tap_t::~device_traffic_tap_t()
 {
@@ -36,6 +37,15 @@ bool device_traffic_tap_t::unregister_traffic_listener(device_traffic_listener_t
   return false;
 }
 
+bool cmd_service_sequence_supplier_t::seek(uint32_t hart_id, size_t seq_no)
+{
+  throw std::runtime_error("The current cmd sequence supplier \"" + identity() + "\" doesn't support seek() operation.");
+}
+
+std::vector<uint8_t> cmd_service_sequence_supplier_t::get_recording_sha256(uint32_t hart_id)
+{
+  throw std::runtime_error("The current cmd sequence supplier \"" + identity() + "\" doesn't support get_recording_sha256() operation.");
+}
 
 device_traffic_listener_t::~device_traffic_listener_t()
 {
@@ -65,60 +75,61 @@ void device_traffic_listener_t::on_unregistered_from_device_traffic_tap(device_t
 
 
 cmd_service_sequence_buffer_t::cmd_service_sequence_buffer_t()
-    : m_target_spec_obtained(false), m_target_memory_mb(0), m_target_core_count(0), m_loaded_elf_sha256()
+    : m_target_spec_obtained(false)
 {
-  memset(m_loaded_elf_sha256, 0, sizeof(m_loaded_elf_sha256));
+  memset(m_target_spec.load_elf_sha256, 0, sizeof(m_target_spec.load_elf_sha256));
 }
 
-cmd_service_sequence_t &cmd_service_sequence_buffer_t::peek(uint32_t core_id)
+cmd_service_sequence_buffer_t::cmd_service_sequence_buffer_t(device_traffic_tap_t &source) : cmd_service_sequence_buffer_t()
 {
+  source.register_traffic_listener(*this);
+}
+
+cmd_service_sequence_t &cmd_service_sequence_buffer_t::peek(uint32_t hart_id)
+{
+  assert(hart_id < m_per_hart_seq_queue.size());
   if (!m_target_spec_obtained)
   {
     throw std::runtime_error("command servicing queue buffer is not ready for peek!");
   }
 
-  if (core_id >= m_per_core_seq_queue.size() || m_per_core_seq_queue[core_id].empty())
-  {
-    throw std::runtime_error("command servicing sequence buffer underflow!");
-  }
-  return *m_per_core_seq_queue[core_id].front();
+  return *m_per_hart_seq_queue_head[hart_id];
 }
 
-void cmd_service_sequence_buffer_t::pop(uint32_t core_id)
+bool cmd_service_sequence_buffer_t::pop(uint32_t hart_id)
 {
-  if (core_id >= m_per_core_seq_queue.size() || m_per_core_seq_queue[core_id].empty())
+  assert(hart_id < m_per_hart_seq_queue.size());
+  if (m_per_hart_seq_queue[hart_id].empty())
   {
-    throw std::runtime_error("command servicing sequence buffer underflow!");
+    return false;
   }
-  cmd_service_sequence_t *popped_seq = m_per_core_seq_queue[core_id].front();
-  m_per_core_seq_queue[core_id].pop();
-  cmd_service_sequence_t::free(popped_seq);
+  cmd_service_sequence_t::free(m_per_hart_seq_queue_head[hart_id]);
+  m_per_hart_seq_queue_head[hart_id] = m_per_hart_seq_queue[hart_id].front();
+  m_per_hart_seq_queue[hart_id].pop();
+  return true;
 }
 
 void cmd_service_sequence_buffer_t::on_cmd_serviced(cmd_service_sequence_t *sequence)
 {
-  assert(sequence->core_id >= m_per_core_seq_queue.size());
-  m_per_core_seq_queue[sequence->core_id].push(sequence);
+  assert(sequence->hart_id < m_per_hart_seq_queue.size());
+  m_per_hart_seq_queue[sequence->hart_id].push(sequence);
 }
 
-void cmd_service_sequence_buffer_t::on_target_spec_obtained(uint32_t target_memory_mb, uint32_t target_core_count, const uint8_t loaded_elf_sha256[])
+void cmd_service_sequence_buffer_t::on_target_spec_known(const riscv_target_spec_t &target_spec)
 {
-  m_target_memory_mb = target_memory_mb;
-  m_target_core_count = target_core_count;
-  memcpy(m_loaded_elf_sha256, loaded_elf_sha256, sizeof(m_loaded_elf_sha256));
-  m_per_core_seq_queue.resize(target_core_count);
+  m_target_spec = target_spec;
+  m_per_hart_seq_queue_head.resize(target_spec.num_hart);
+  m_per_hart_seq_queue.resize(target_spec.num_hart);
   m_target_spec_obtained = true;
 }
 
-void cmd_service_sequence_buffer_t::get_target_spec(uint32_t &target_memory_mb, uint32_t &target_core_count, uint8_t loaded_elf_sha256[256 / 8])
+void cmd_service_sequence_buffer_t::get_target_spec(riscv_target_spec_t &target_spec_output)
 {
   if (!m_target_spec_obtained)
   {
     throw std::runtime_error("command servicing queue buffer didn't received target spec yet!");
   }
-  target_memory_mb = m_target_memory_mb;
-  target_core_count = m_target_core_count;
-  memcpy(loaded_elf_sha256, m_loaded_elf_sha256, sizeof(m_loaded_elf_sha256));
+  target_spec_output = m_target_spec;
 }
 
 std::string cmd_service_sequence_buffer_t::identity()

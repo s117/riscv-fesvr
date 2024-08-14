@@ -24,7 +24,7 @@ class htif_pthread_t : public htif_t
   virtual ssize_t write(const void* buf, size_t size);
 
   virtual size_t chunk_align() { return 64; }
-  virtual size_t chunk_max_size() { return 1024; }
+  virtual size_t chunk_max_size() { return 16384; }
 
  private:
   context_t host;
