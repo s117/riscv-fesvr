@@ -5,12 +5,12 @@
 
 #include <pthread.h>
 
-//#if defined(__GLIBC__)
-//# undef USE_UCONTEXT
-//# define USE_UCONTEXT
-//# include <ucontext.h>
-//# include <memory>
-//#endif
+#if defined(__GLIBC__)
+# undef USE_UCONTEXT
+# define USE_UCONTEXT
+# include <ucontext.h>
+# include <memory>
+#endif
 
 class context_t
 {
