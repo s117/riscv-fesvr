@@ -44,6 +44,7 @@ public:
     if (!m_enabled)
       return;
     fprintf(m_output_file, ") -> %" PRIi64 "\n\n", (int64_t) ret_code);
+    fflush(m_output_file);
   }
 
   void syscall_record_param_uint64(const char *param_name, uint64_t value) {
