@@ -5,6 +5,8 @@
 #ifndef _HART_EXECUTION_REG_H
 #define _HART_EXECUTION_REG_H
 
+#include <cinttypes>
+
 /**
  * 1). Sequence to set instruction count breakpoint:
  *   1. Load CR_EXE_CTRL_INSTR_CNT_DOWN with number of instr. to execute until freeze.
@@ -27,13 +29,13 @@
  *   1. Write the corresponding bits to CR_EXE_CTRL_RESET.
  */
 
-static constexpr size_t EXE_CTRL_MASK_UNCONDITIONAL = 1 << 0;
-static constexpr size_t EXE_CTRL_MASK_INSTR_CNT_DOWN = 1 << 1;
-static constexpr size_t EXE_CTRL_MASK_PC0 = 1 << 2;
-static constexpr size_t EXE_CTRL_MASK_PC1 = 1 << 3;
-static constexpr size_t EXE_CTRL_MASK_PC2 = 1 << 4;
-static constexpr size_t EXE_CTRL_MASK_PC3 = 1 << 5;
-static constexpr size_t EXE_CTRL_MASK_ALL = (EXE_CTRL_MASK_UNCONDITIONAL | EXE_CTRL_MASK_INSTR_CNT_DOWN | EXE_CTRL_MASK_PC0 | EXE_CTRL_MASK_PC1 | EXE_CTRL_MASK_PC2 | EXE_CTRL_MASK_PC3);
+static constexpr uint64_t EXE_CTRL_MASK_UNCONDITIONAL = 1 << 0;
+static constexpr uint64_t EXE_CTRL_MASK_INSTR_CNT_DOWN = 1 << 1;
+static constexpr uint64_t EXE_CTRL_MASK_PC0 = 1 << 2;
+static constexpr uint64_t EXE_CTRL_MASK_PC1 = 1 << 3;
+static constexpr uint64_t EXE_CTRL_MASK_PC2 = 1 << 4;
+static constexpr uint64_t EXE_CTRL_MASK_PC3 = 1 << 5;
+static constexpr uint64_t EXE_CTRL_MASK_ALL = (EXE_CTRL_MASK_UNCONDITIONAL | EXE_CTRL_MASK_INSTR_CNT_DOWN | EXE_CTRL_MASK_PC0 | EXE_CTRL_MASK_PC1 | EXE_CTRL_MASK_PC2 | EXE_CTRL_MASK_PC3);
 
 enum htif_hart_exec_ctrl_reg_t
 {
