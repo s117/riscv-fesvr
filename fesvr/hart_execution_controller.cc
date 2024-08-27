@@ -24,8 +24,6 @@ bool hart_execution_controller_t::set_unconditional_breakpoint(uint32_t hart_id,
   if (instret_count_bp_slot.active)
     return false;
 
-  assert((m_htif.read_hart_exec_ctrl_reg(hart_id, CR_EXE_CTRL_ENABLE) & EXE_CTRL_MASK_UNCONDITIONAL) == 0);
-
   instret_count_bp_slot.active = true;
   instret_count_bp_slot.handler = handler;
   m_htif.write_hart_exec_ctrl_reg(hart_id, CR_EXE_CTRL_ENABLE, EXE_CTRL_MASK_UNCONDITIONAL);
