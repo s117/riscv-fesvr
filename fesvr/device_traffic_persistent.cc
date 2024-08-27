@@ -457,7 +457,7 @@ void device_traffic_recorder_t::on_target_spec_known(const riscv_target_spec_t &
   uint32_t target_memory_mb = target_spec.mem_sz_mb;
   uint32_t target_num_hart = target_spec.num_hart;
   assert(sizeof(target_spec.load_elf_sha256) == 256 / 8);
-  std::ofstream system_spec_output_stream(m_output_base_folder + PATH_SEP + "target_spec");
+  std::ofstream system_spec_output_stream(m_output_base_folder + PATH_SEP + "target_spec.data");
   system_spec_output_stream.write((const char *) &target_memory_mb, sizeof(target_memory_mb));
   system_spec_output_stream.write((const char *) &target_num_hart, sizeof(target_num_hart));
   system_spec_output_stream.write((const char *) target_spec.load_elf_sha256, 256 / 8);
@@ -540,7 +540,7 @@ std::string device_traffic_replayer_t::identity()
 
 device_traffic_replayer_t::device_traffic_replayer_t(std::string input_folder) : m_input_folder(std::move(input_folder))
 {
-  std::ifstream fp_target_spec(m_input_folder + "/" + "target_spec");
+  std::ifstream fp_target_spec(m_input_folder + "/" + "target_spec.data");
   if (!fp_target_spec)
   {
     throw std::runtime_error("fail to load pre-recorded FESVR device traffic: cannot open target spec information.");
