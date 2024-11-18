@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.23)
+
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -54,14 +56,20 @@ set(
         syscall_bypass.cc
 )
 
+add_library(fesvr-interface INTERFACE)
+target_compile_definitions(fesvr-interface INTERFACE PREFIX="${PREFIX}")
+target_sources(fesvr-interface INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS . ..
+        FILES ${fesvr_hdrs}
+)
+
 add_library(
         fesvr-static STATIC
         ${fesvr_srcs}
         ${fesvr_hdrs}
 )
-target_include_directories(fesvr-static INTERFACE ..)
-target_include_directories(fesvr-static PUBLIC .)
-target_compile_options(fesvr-static PRIVATE "-DPREFIX=\"${PREFIX}\"")
+target_link_libraries(fesvr-static PUBLIC fesvr-interface)
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 else ()
@@ -74,9 +82,7 @@ add_library(
         ${fesvr_srcs}
         ${fesvr_hdrs}
 )
-target_include_directories(fesvr-shared INTERFACE ..)
-target_include_directories(fesvr-shared PUBLIC .)
-target_compile_options(fesvr-shared PRIVATE "-DPREFIX=\"${PREFIX}\"")
+target_link_libraries(fesvr-shared PUBLIC fesvr-interface)
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 else ()
