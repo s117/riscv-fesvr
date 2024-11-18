@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
-endif ()
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 if (NOT DEFINED PREFIX)
     message(FATAL_ERROR "Variable PREFIX is not set, give it a value so the macro PREFIX can be determined")
@@ -70,12 +68,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-static PUBLIC fesvr-interface)
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    target_link_libraries(fesvr-static PUBLIC Threads::Threads)
-else ()
-    target_link_libraries(fesvr-static PUBLIC pthread)
-endif ()
-
+target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 
 add_library(
         fesvr-shared SHARED
@@ -83,11 +76,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-shared PUBLIC fesvr-interface)
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
-else ()
-    target_link_libraries(fesvr-shared PUBLIC pthread)
-endif ()
+target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 
 add_executable(elf2hex elf2hex.cc)
 target_link_libraries(elf2hex fesvr-static)
