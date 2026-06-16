@@ -58,7 +58,7 @@ add_library(fesvr-interface INTERFACE)
 target_compile_definitions(fesvr-interface INTERFACE PREFIX="${PREFIX}")
 target_sources(fesvr-interface INTERFACE
         FILE_SET HEADERS
-        BASE_DIRS . ..
+        BASE_DIRS ..
         FILES ${fesvr_hdrs}
 )
 
