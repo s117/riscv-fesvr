@@ -316,7 +316,7 @@ reg_t syscall_t::sys_fstat(reg_t fd, reg_t pbuf, reg_t a2, reg_t a3, reg_t a4, r
 {
   struct stat buf;
   reg_t ret = sysret_errno(fstat(fds.lookup(fd), &buf));
-  if (ret != (reg_t)-1)
+  if (ret == 0)
   {
     riscv_stat rbuf(buf);
     memif->write(pbuf, sizeof(rbuf), &rbuf);
@@ -366,7 +366,7 @@ reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a
   struct stat buf;
   reg_t ret = sysret_errno(AT_SYSCALL(fstatat, RISCV_AT_FDCWD, &name[0], &buf, AT_SYMLINK_NOFOLLOW));
   riscv_stat rbuf(buf);
-  if (ret != (reg_t)-1)
+  if (ret == 0)
   {
     riscv_stat rbuf(buf);
     memif->write(pbuf, sizeof(rbuf), &rbuf);
@@ -412,7 +412,7 @@ reg_t syscall_t::sys_fstatat(reg_t dirfd, reg_t pname, reg_t len, reg_t pbuf, re
 
   struct stat buf;
   reg_t ret = sysret_errno(AT_SYSCALL(fstatat, dirfd, &name[0], &buf, flags));
-  if (ret != (reg_t)-1)
+  if (ret == 0)
   {
     riscv_stat rbuf(buf);
     memif->write(pbuf, sizeof(rbuf), &rbuf);
