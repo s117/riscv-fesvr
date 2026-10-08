@@ -518,7 +518,7 @@ reg_t syscall_t::sys_readlinkat(reg_t dirfd, reg_t pname, reg_t len, reg_t pbuf,
   m_strace->syscall_record_param_fd(PASS_PARAM(dirfd));
   m_strace->syscall_record_param_path_name("pathname", pname, &name[0], 'i');
   m_strace->syscall_record_param_simple_ptr("buf", pbuf, 'o');
-  m_strace->syscall_record_param_uint64("bufsiz", len);
+  m_strace->syscall_record_param_uint64("bufsiz", bufsiz);
   std::vector<char> path_buf(PATH_MAX + 1);
   sreg_t ret = sysret_errno(AT_SYSCALL(readlinkat, dirfd, &name[0], &path_buf[0], PATH_MAX));
 
@@ -536,13 +536,10 @@ reg_t syscall_t::sys_readlinkat(reg_t dirfd, reg_t pname, reg_t len, reg_t pbuf,
     else
       target_path = &path_buf[0];
 
-    // silently truncate the output if the receiving buffer is not large enough
-    size_t write_size = target_path.size();
+    // silently truncate the output if the receiving buffer is not large
+    // enough, and return the number of bytes placed in it, as Linux does
+    size_t write_size = std::min<size_t>(target_path.size(), bufsiz);
     ret = write_size;
-    if (bufsiz < target_path.size()) {
-      write_size = bufsiz;
-      ret = -EFAULT;
-    }
 
     memif->write(pbuf, write_size, &target_path[0]);
   }
