@@ -90,7 +90,7 @@ public:
     }
     fprintf(
       m_output_file, "  %s %s = 0x%016" PRIX64 "|%s|\n",
-      type_prefix, param_name, ptr_val, base64_encode(ptr_dat).c_str()
+      type_prefix, param_name, ptr_val, base64_encode(std::string(ptr_dat)).c_str()
     );
   }
 
@@ -106,7 +106,7 @@ public:
     }
     fprintf(
       m_output_file, "  %s %s = 0x%016" PRIX64 "|%s|\n",
-      type_prefix, param_name, ptr_val, base64_encode(ptr_dat).c_str()
+      type_prefix, param_name, ptr_val, base64_encode(std::string(ptr_dat)).c_str()
     );
   }
 
