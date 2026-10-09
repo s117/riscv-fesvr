@@ -161,6 +161,7 @@ namespace device_traffic_persistent
         break;
       case PACKET_FILE_EOF:
         payload_size = 0;
+        break;
       default:
         payload_size = SIZE_MAX - header_size();
         assert(0);
