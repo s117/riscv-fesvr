@@ -824,8 +824,6 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
     if (memcmp(header->harts[i].traffic_recording_sha256, hart_i_recording_sha256.data(), hart_i_recording_sha256.size()) != 0)
       throw std::runtime_error("Cannot use the checkpoint file " + checkpoint_path + " because it requires HART " + std::to_string(i) + " to load a device traffic recording with SHA256 " + crypto_digest_t::to_string(header->harts[i].traffic_recording_sha256, sizeof(header->harts[i].traffic_recording_sha256)) + ", however the SHA256 of the current loaded recording is " + crypto_digest_t::to_string(hart_i_recording_sha256) + ".");
 
-    upload_memory_dump(ifs);
-
     std::vector<char> hart_state_buf(header->harts[i].hart_state_storage, header->harts[i].hart_state_storage + header->harts[i].hart_state_size);
     upload_hart_full_state(i, hart_state_buf);
 
@@ -839,6 +837,9 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
       recorded_composition.reset_num_cmd_received(i, header->harts[i].traffic_skip_amt);
     }
   }
+
+  // The memory is shared by all the HARTs, and its dump is the rest of the checkpoint file (see create_checkpoint())
+  upload_memory_dump(ifs);
 }
 
 void htif_t::create_checkpoint(const std::string &output_filename)
