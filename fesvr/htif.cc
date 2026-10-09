@@ -213,8 +213,9 @@ htif_t::htif_t(const std::vector<std::string> &args)
       device_composition->register_traffic_listener(*traffic_recorder);
     }
 
-    // debug output
-    device_composition->register_traffic_listener(traffic_debug_listener);
+    // debug output, only registered with +verbose: any registered listener makes every command capture its traffic
+    if (g_fesvr_verbose_output)
+      device_composition->register_traffic_listener(traffic_debug_listener);
   }
 }
 
