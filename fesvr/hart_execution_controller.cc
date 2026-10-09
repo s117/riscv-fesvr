@@ -134,6 +134,14 @@ void hart_execution_controller_t::on_hart_frozen(uint32_t hart_id, reg_t frozen_
 
 void hart_execution_controller_t::do_poll(uint32_t hart_id)
 {
+  // Polling costs an HTIF round trip, skip it when no breakpoint is armed on this HART
+  // (a frozen bit without an active slot isn't handled by on_hart_frozen() anyway).
+  bool any_active = false;
+  for (auto &slot: m_hart_bp_slots[hart_id])
+    any_active |= slot.second.active;
+  if (!any_active)
+    return;
+
   reg_t curr_frozen_reg = m_htif.read_hart_exec_ctrl_reg(hart_id, CR_EXE_CTRL_FROZEN);
   if (curr_frozen_reg)
   {
