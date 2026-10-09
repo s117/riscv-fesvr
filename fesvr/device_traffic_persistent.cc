@@ -387,9 +387,17 @@ namespace device_traffic_persistent
     m_index_ostream.close();
     m_packets_ostream.close();
 
+    // A stream that failed at any point (including the final flush on close) leaves a truncated recording
+    if (!m_index_ostream)
+      throw std::runtime_error("failed to write the device traffic index: " + m_path + ".index");
+    if (!m_packets_ostream)
+      throw std::runtime_error("failed to write the device traffic packets: " + m_path + ".packets");
+
     auto packet_stream_sha256 = m_packet_stream_sha256.final();
     m_sha256_ostream.write((const char *) packet_stream_sha256.data(), packet_stream_sha256.size()); // NOLINT(*-narrowing-conversions)
     m_sha256_ostream.close();
+    if (!m_sha256_ostream)
+      throw std::runtime_error("failed to write the device traffic checksum: " + m_path + ".sha256");
   }
 
   // protected
