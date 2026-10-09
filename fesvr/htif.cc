@@ -736,6 +736,10 @@ void htif_t::upload_memory_dump(std::istream &input_stream)
     // Load memory dump from the input stream in the proposed chunk
     input_stream.read(send_buf.data(), send_buf.size());
     size_t effective_length = input_stream.gcount();
+    // When the previous read ended exactly at the end of the stream, the stream is still good, but there is nothing
+    // left to send. Don't send it as an empty chunk, the target would take it as the end-of-stream packet [H.3].
+    if (effective_length == 0)
+      break;
     size_t ds = (effective_length + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN;
     // Zero-padding the packet if needed
     if (effective_length < (ds * HTIF_DATA_ALIGN))
