@@ -142,7 +142,8 @@ namespace device_traffic_persistent
           "malformed device traffic input: device traffic early termination, expect to contain " +
           std::to_string(num_commands()) + " commands, but terminated after " + std::to_string(m_next_cmd_seq_no) + " commands.");
 
-      m_packet_buffer.reserve(packet_t::header_size());
+      if (m_packet_buffer.size() < packet_t::header_size())
+        m_packet_buffer.resize(packet_t::header_size());
       auto &packet_buf_ref = reinterpret_cast<packet_t &>(*&m_packet_buffer[0]);
       packet_buf_ref.header.type = PACKET_FILE_EOF;
       return packet_buf_ref;
@@ -179,8 +180,9 @@ namespace device_traffic_persistent
     get_raw_data(((uint8_t *) &tmp) + packet_header_size, payload_base_size, false);
     payload_extra_size = tmp.packet_size() - packet_header_size - payload_base_size;
 
-    // reserve enough memory for the full packet, then read extra payload (if any)
-    m_packet_buffer.reserve(packet_header_size + payload_base_size + payload_extra_size);
+    // grow the buffer to hold the full packet (it is written by index, so size() must cover it), then read extra payload (if any)
+    if (m_packet_buffer.size() < packet_header_size + payload_base_size + payload_extra_size)
+      m_packet_buffer.resize(packet_header_size + payload_base_size + payload_extra_size);
     memcpy(&m_packet_buffer[0], &tmp, packet_header_size + payload_base_size);
     if (payload_extra_size)
     {
@@ -378,8 +380,9 @@ namespace device_traffic_persistent
   {
     assert(m_packet_buf_empty);
 
-    m_packet_buf.reserve(packet_size);
-    assert(packet_size <= m_packet_buf.capacity());
+    // the packet is written by index, so size() (not just capacity()) must cover it
+    if (m_packet_buf.size() < packet_size)
+      m_packet_buf.resize(packet_size);
 
     m_packet_buf_empty = false;
     return reinterpret_cast<packet_t &>(*&m_packet_buf[0]);
@@ -393,7 +396,7 @@ namespace device_traffic_persistent
     const auto *p_packet_buf = (packet_t *) &m_packet_buf[0];
     const auto packet_size = p_packet_buf->packet_size();
 
-    assert(packet_size <= m_packet_buf.capacity());
+    assert(packet_size <= m_packet_buf.size());
     assert(m_packets_ostream);
     m_packets_ostream.write((const char *) p_packet_buf, packet_size); // NOLINT(*-narrowing-conversions)
     m_packet_stream_sha256.update(p_packet_buf, packet_size);
@@ -472,7 +475,7 @@ void device_traffic_recorder_t::on_cmd_serviced(cmd_service_sequence_t *sequence
   packet_writer->write_cmd_begin_packet(sequence->device, sequence->cmd, sequence->payload);
   for (auto &mem_transaction: sequence->mem_transactions)
   {
-    packet_writer->write_phy_mem_access_packet(mem_transaction.addr, mem_transaction.is_write, mem_transaction.data.size(), &mem_transaction.data[0]);
+    packet_writer->write_phy_mem_access_packet(mem_transaction.addr, mem_transaction.is_write, mem_transaction.data.size(), mem_transaction.data.data());
   }
   packet_writer->write_cmd_end_packet(sequence->responded, sequence->response_value, sequence->htif_exitcode);
 

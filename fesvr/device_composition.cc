@@ -136,13 +136,13 @@ void recorded_composition_t::do_handle_command(command_t cmd)
   {
     if (mem_transaction.is_write)
     {
-      m_htif.memif().write(mem_transaction.addr, mem_transaction.data.size(), &mem_transaction.data[0]);
+      m_htif.memif().write(mem_transaction.addr, mem_transaction.data.size(), mem_transaction.data.data());
     }
     else
     {
-      read_buf.reserve(mem_transaction.data.size());
-      m_htif.memif().read(mem_transaction.addr, mem_transaction.data.size(), &read_buf[0]);
-      if (memcmp(&mem_transaction.data[0], &read_buf[0], mem_transaction.data.size()) != 0)
+      read_buf.resize(mem_transaction.data.size());
+      m_htif.memif().read(mem_transaction.addr, mem_transaction.data.size(), read_buf.data());
+      if (memcmp(mem_transaction.data.data(), read_buf.data(), mem_transaction.data.size()) != 0)
       {
         throw replay_error("the data read from target system doesn't match the recorded servicing sequence.");
       }
