@@ -171,7 +171,10 @@ void recorded_composition_t::do_handle_command(command_t cmd)
     }
   }
 
-  update_htif_exitcode(service_seq.htif_exitcode);
+  // Only replay an exit request: a recorded 0 would clear an exit the host itself has requested in the meantime
+  // (e.g. stopping after the last checkpoint is created).
+  if (service_seq.htif_exitcode != 0)
+    update_htif_exitcode(service_seq.htif_exitcode);
 
   if (service_seq.responded)
   {
