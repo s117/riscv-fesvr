@@ -494,14 +494,20 @@ void htif_t::upload_hart_full_state(uint32_t hart_id, const std::vector<char> &s
   reg_t addr = (reg_t) hart_id;
   // state_length must be aligned to HTIF_DATA_ALIGN
   size_t state_length = state_buf.size();
-  assert(state_length / HTIF_DATA_ALIGN == (state_length + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN);
+  if (state_length % HTIF_DATA_ALIGN != 0)
+    throw std::runtime_error(
+      "Cannot upload the full state of HART " + std::to_string(hart_id) + ": its size (" +
+      std::to_string(state_length) + " bytes) is not aligned to " + std::to_string(HTIF_DATA_ALIGN) + " bytes.");
   packet_header_t hdr(HTIF_CMD_UPLOAD_HART_FULL_STATE, seqno, state_length / HTIF_DATA_ALIGN, addr);
   write_packet(packet_t(hdr, state_buf.data(), state_length));
 
   packet_t resp = read_packet(seqno);
   seqno++;
 
-  assert(resp.get_payload_size() == 0);
+  if (resp.get_payload_size() != 0)
+    throw std::runtime_error(
+      "Error happened while uploading the full state of HART " + std::to_string(hart_id) +
+      ": the target replied with an unexpected payload.");
 }
 
 
@@ -663,7 +669,11 @@ size_t htif_t::download_memory_dump(std::ostream &output_stream)
 
     // Stream continue [T.1]
     size_t prev_received = resp.get_header().addr;
-    assert(prev_received <= resp.get_payload_size());
+    if (prev_received > resp.get_payload_size())
+      throw std::runtime_error(
+        "Error happened while downloading full memory dump from target: target reported " +
+        std::to_string(prev_received) + " effective bytes in a " + std::to_string(resp.get_payload_size()) +
+        " bytes chunk.");
     output_stream.write((const char *) resp.get_payload(), prev_received);
     total_received += prev_received;
 
@@ -724,10 +734,15 @@ void htif_t::upload_memory_dump(std::istream &input_stream)
 
   // Get target response [T.1]
   packet_t resp = read_packet(hdr.seqno);
-  assert(resp.get_payload_size() == 0);
+  if (resp.get_payload_size() != 0)
+    throw std::runtime_error("Error happened while loading memory dump to target: the target replied the initiating packet with an unexpected payload.");
 
   // Prepare the send buffer
   size_t send_chunk_size = resp.get_header().addr;
+  if (send_chunk_size == 0 || send_chunk_size % HTIF_DATA_ALIGN != 0)
+    throw std::runtime_error(
+      "Error happened while loading memory dump to target: the target proposed an invalid chunk size of " +
+      std::to_string(send_chunk_size) + " bytes.");
   std::vector<char> send_buf(send_chunk_size);
 
   size_t total_sent = 0;
@@ -754,8 +769,10 @@ void htif_t::upload_memory_dump(std::istream &input_stream)
 
     // Wait for target, and check the received bytes it reported [T.2]
     packet_t resp = read_packet(hdr.seqno);
-    assert(resp.get_payload_size() == 0);
-    assert(resp.get_header().addr == effective_length);
+    if (resp.get_payload_size() != 0 || resp.get_header().addr != effective_length)
+      throw std::runtime_error(
+        "Error happened while loading memory dump to target: sent a chunk with " + std::to_string(effective_length) +
+        " effective bytes, but the target acknowledged " + std::to_string(resp.get_header().addr) + " bytes.");
   }
 
   // Notify target the end-of-stream [H.3]
@@ -766,7 +783,8 @@ void htif_t::upload_memory_dump(std::istream &input_stream)
 
   // Wait for target to confirm [T.2]
   packet_t eos_resp = read_packet(hdr.seqno);
-  assert(eos_resp.get_payload_size() == 0);
+  if (eos_resp.get_payload_size() != 0)
+    throw std::runtime_error("Error happened while loading memory dump to target: the target replied the end-of-stream packet with an unexpected payload.");
 
   // Validate the decompressed data size [H.3]
   if (eos_resp.get_header().addr != (uint64_t(mem_mb()) << 20))
@@ -824,6 +842,8 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
     if (memcmp(header->harts[i].traffic_recording_sha256, hart_i_recording_sha256.data(), hart_i_recording_sha256.size()) != 0)
       throw std::runtime_error("Cannot use the checkpoint file " + checkpoint_path + " because it requires HART " + std::to_string(i) + " to load a device traffic recording with SHA256 " + crypto_digest_t::to_string(header->harts[i].traffic_recording_sha256, sizeof(header->harts[i].traffic_recording_sha256)) + ", however the SHA256 of the current loaded recording is " + crypto_digest_t::to_string(hart_i_recording_sha256) + ".");
 
+    if (header->harts[i].hart_state_size > hart_checkpoint_t::HART_STATE_STORAGE_MAX)
+      throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because the full state of HART " + std::to_string(i) + " is " + std::to_string(header->harts[i].hart_state_size) + " bytes, which exceeds the " + std::to_string(hart_checkpoint_t::HART_STATE_STORAGE_MAX) + " bytes storage.");
     std::vector<char> hart_state_buf(header->harts[i].hart_state_storage, header->harts[i].hart_state_storage + header->harts[i].hart_state_size);
     upload_hart_full_state(i, hart_state_buf);
 
