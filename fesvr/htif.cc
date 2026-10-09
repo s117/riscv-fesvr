@@ -818,6 +818,12 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
   read_ckpt_data(&header->magic, sizeof(header->magic));
   read_ckpt_data(&header->num_hart, sizeof(header->num_hart));
 
+  // Validate before num_hart sizes the rest of the header, a wrong file could ask for an arbitrarily large buffer
+  if (header->magic != checkpoint_header_t::RV64_CHECKPOINT_MAGIC)
+    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it has a bad magic number.");
+  if (header->num_hart != num_cores())
+    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it was created for system with " + std::to_string(header->num_hart) + " HART(s), however the current system is configured with " + std::to_string(num_cores()) + " HART(s).");
+
   header_buf.resize(checkpoint_header_t::size(header->num_hart), 0);
   header = (checkpoint_header_t *) header_buf.data();
 
@@ -825,10 +831,6 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
   read_ckpt_data(&header->load_elf_sha256, sizeof(header->load_elf_sha256));
   read_ckpt_data(&header->harts, header->num_hart * sizeof(hart_checkpoint_t));
 
-  if (header->magic != checkpoint_header_t::RV64_CHECKPOINT_MAGIC)
-    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it has a bad magic number.");
-  if (header->num_hart != num_cores())
-    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it was created for system with " + std::to_string(header->num_hart) + " HART(s), however the current system is configured with " + std::to_string(num_cores()) + " HART(s).");
   if (header->mem_sz_mb != mem_mb())
     throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it was created for system with " + std::to_string(header->mem_sz_mb) + " MB RAM, however the current system is configured with " + std::to_string(mem_mb()) + " MB RAM.");
 
