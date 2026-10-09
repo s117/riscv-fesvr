@@ -310,6 +310,12 @@ namespace device_traffic_persistent
     explicit raw_packet_writer_t(const std::string &path);
 
     /**
+     * Close the writer if it wasn't closed, so that a recording is finalized even when the simulation ends without
+     * stopping the FESVR (e.g. on an instruction count limit).
+     */
+    ~raw_packet_writer_t();
+
+    /**
      * Write a COMMAND_BEGIN packet.
      *
      * @param device The device ID field of the command.
@@ -342,6 +348,7 @@ namespace device_traffic_persistent
 
     /**
      * Finalize and dump the SHA256 of the packet file. Then flush and close all output stream.
+     * Calling it on a closed writer does nothing.
      */
     void close();
 
@@ -401,6 +408,8 @@ namespace device_traffic_persistent
     uint64_t m_current_packet_offset;       /** The current write position in the packet output stream. */
 
     bool m_current_command_active;          /** Set to true when handling a write_cmd_begin_packet() call, and to false when handling a write_cmd_end_packet() call. */
+
+    bool m_closed;                          /** Set to true once close() has finalized the output files. */
 
     checksum_t m_cumulative_checksum;       /** The CRC32 since the beginning of the packet file. However, due to the mathematical property of CRC32, its only affected by the data since the last COMMAND_END packet. */
     crypto_digest_t m_packet_stream_sha256; /** An incrementally updated SHA256 since the beginning of the packet file. It will be finalized and dumped to the {path}.sha256 on a close() call. */

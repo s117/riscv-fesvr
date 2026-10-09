@@ -282,6 +282,7 @@ namespace device_traffic_persistent
         m_packet_buf_empty(true),
         m_current_packet_offset(0),
         m_current_command_active(false),
+        m_closed(false),
         m_cumulative_checksum(CHECKSUM_ALGO),
         m_packet_stream_sha256("sha256")
   {
@@ -361,12 +362,28 @@ namespace device_traffic_persistent
   }
 
   // public
+  raw_packet_writer_t::~raw_packet_writer_t()
+  {
+    try
+    {
+      close();
+    }
+    catch (std::exception &e)
+    {
+      fprintf(stderr, "Failed to finalize the device traffic recording %s: %s\n", m_path.c_str(), e.what());
+    }
+  }
+
+  // public
   void raw_packet_writer_t::close()
   {
+    if (m_closed)
+      return;
     if (m_current_command_active)
     {
       throw std::runtime_error("fatal: try closing the device traffic output stream before the current command is finished.");
     }
+    m_closed = true;
     m_index_ostream.close();
     m_packets_ostream.close();
 
