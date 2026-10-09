@@ -894,10 +894,20 @@ void htif_t::create_checkpoint(const std::string &output_filename)
 
 
   std::ofstream ofs(output_filename);
+  if (!ofs)
+    throw std::runtime_error("Cannot create checkpoint: failed to open " + output_filename + " for writing.");
+
   ofs.write((const char *) header, header->size());
+  if (!ofs)
+    throw std::runtime_error("Cannot create checkpoint: failed to write the header to " + output_filename + ".");
+
   download_memory_dump(ofs);
+  if (!ofs)
+    throw std::runtime_error("Cannot create checkpoint: failed to write the memory dump to " + output_filename + ".");
 
   ofs.close();
+  if (!ofs)
+    throw std::runtime_error("Cannot create checkpoint: failed to finish writing " + output_filename + ".");
 }
 
 void htif_t::setup_trap_for_next_checkpoint()
