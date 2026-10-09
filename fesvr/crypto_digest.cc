@@ -102,10 +102,10 @@ std::string crypto_digest_t::to_string(const void *digest, size_t digest_len, bo
 {
   std::ostringstream hash_str;
   auto d = (uint8_t *) digest;
-  hash_str << std::hex << std::setw(2) << std::setfill('0');
+  hash_str << std::hex << std::setfill('0');
   if (capitalized) hash_str << std::uppercase;
   for (size_t i = 0; i < digest_len; i++)
-    hash_str << uint16_t(d[i]);
+    hash_str << std::setw(2) << uint16_t(d[i]); // setw() only applies to the next insertion
 
   return hash_str.str();
 }
