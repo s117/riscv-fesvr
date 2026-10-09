@@ -68,45 +68,6 @@ class htif_t
   virtual void load_program();
   virtual void reset();
 
-  void download_mem_dump_test(const std::string&write_path)
-  {
-    constexpr bool target_compress = true;
-
-    if (target_compress) {
-      std::ofstream output_file(write_path);
-      download_memory_dump(output_file);
-    } else {
-      ogzstream output_file("full_memory_dump.gz");
-      //    std::ofstream output_file("full_memory_dump");
-      constexpr size_t chunk_size = 8192<<10;
-      std::vector<uint8_t> buf(chunk_size);
-      size_t mem_size = size_t(mem_mb()) << 20;
-      assert(mem_size / chunk_size == (mem_size + (chunk_size - 1)) / chunk_size);
-      for (size_t offset = 0; offset < mem_size; offset += chunk_size)
-      {
-        if ((offset & ((32 << 20) - 1)) == 0)
-        {
-          printf("%" PRIu64 "MB memory dumped\n", offset >> 20);
-        }
-        memif().read(offset, chunk_size, buf.data());
-        output_file.write((char *) buf.data(), chunk_size);
-      }
-    }
-  }
-
-  void upload_mem_dump_test(const std::string& read_path)
-  {
-    constexpr bool target_compress = true;
-
-    if (target_compress) {
-      std::ifstream input_file(read_path);
-      upload_memory_dump(input_file);
-    } else {
-      assert(0);
-    }
-  }
-
-
   void load_checkpoint(const std::string &checkpoint_path);
 
   void create_checkpoint(const std::string &output_filename);
