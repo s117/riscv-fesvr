@@ -475,6 +475,9 @@ void device_traffic_recorder_t::on_cmd_serviced(cmd_service_sequence_t *sequence
     packet_writer->write_phy_mem_access_packet(mem_transaction.addr, mem_transaction.is_write, mem_transaction.data.size(), &mem_transaction.data[0]);
   }
   packet_writer->write_cmd_end_packet(sequence->responded, sequence->response_value, sequence->htif_exitcode);
+
+  // relinquish this listener's ownership of the sequence, as required by device_traffic_listener_t::on_cmd_serviced()
+  cmd_service_sequence_t::free(sequence);
 }
 
 
