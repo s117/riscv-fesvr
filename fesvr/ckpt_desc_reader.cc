@@ -42,7 +42,21 @@ void ckpt_desc_validate(const ckpt_desc_list_t &c) noexcept(false) {
   }
 
   std::map<size_t, ckpt_desc_t> unique_check_list;
+  std::map<std::string, ckpt_desc_t> unique_name_check_list;
   for (auto &it: c) {
+    // make sure each checkpoint has a unique name, otherwise a later checkpoint overwrites the earlier one's file
+    if (!unique_name_check_list.count(it.first)) {
+      unique_name_check_list[it.first] = it;
+    } else {
+      auto& conflict_a = unique_name_check_list[it.first];
+      auto& conflict_b = it;
+
+      throw std::runtime_error(
+        std::string("Configurations has same checkpoint name:\n") +
+        "  \"" + conflict_a.first + ": " + std::to_string(conflict_a.second) + "\" and\n" +
+        "  \"" + conflict_b.first + ": " + std::to_string(conflict_b.second) + "\"\n"
+      );
+    }
     // make sure each checkpoint has a unique skip amount
     if (!unique_check_list.count(it.second)) {
       unique_check_list[it.second] = it;
@@ -82,13 +96,23 @@ ckpt_desc_list_t ckpt_desc_file_read(const std::string &filepath) noexcept(false
     line = trim(line);
     if (line.empty())
       continue;
+    if (line.find(':') == std::string::npos) {
+      throw std::runtime_error("Configuration '" + line + "' has no ':' between the checkpoint name and its skip amount.");
+    }
     auto lr_pair = rsplit(line, ':');
     lr_pair = std::make_pair(trim(lr_pair.first), trim(lr_pair.second));
 
     auto ckpt_name = lr_pair.first;
+    if (ckpt_name.empty()) {
+      throw std::runtime_error("Configuration '" + line + "' has an empty checkpoint name.");
+    }
     std::istringstream ckpt_skip_amt_in_stream(lr_pair.second);
     size_t ckpt_skip_amt;
 
+    // reject a sign explicitly: extracting a negative number into size_t wraps around instead of failing
+    if (!lr_pair.second.empty() && (lr_pair.second[0] == '-' || lr_pair.second[0] == '+')) {
+      throw std::runtime_error("Configuration '" + line + "' contains invalid skip amount.");
+    }
     ckpt_skip_amt_in_stream >> ckpt_skip_amt;
     if (ckpt_skip_amt_in_stream.fail() or !ckpt_skip_amt_in_stream.eof()) {
       throw std::runtime_error("Configuration '" + line + "' contains invalid skip amount.");
