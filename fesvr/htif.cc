@@ -127,15 +127,16 @@ htif_t::htif_t(const std::vector<std::string> &args)
 
   is_main_fesvr = !device_traffic_bypass_manager_t::has_main_composition();
 
+  // Checkpoints are only supported in device traffic replay mode, for both the main and the mirror FESVR
+  if (!checkpoint_creation_list.empty() && arg_device_traffic_replay_path.empty())
+    throw std::runtime_error("to create checkpoint(s), FESVR must operate in device traffic replay mode.");
+
+  if (!checkpoint_restoration_path.empty() && arg_device_traffic_replay_path.empty())
+    throw std::runtime_error("to load a checkpoint, FESVR must operate in device traffic replay mode.");
+
   if (!is_main_fesvr)
   {
     // This FESVR instance is not the main instance, it simply replays the device traffic supplied by the main instance
-    if (!checkpoint_creation_list.empty() && arg_device_traffic_replay_path.empty())
-      throw std::runtime_error("to create checkpoint(s), FESVR must operate in device traffic replay mode.");
-
-    if (!checkpoint_restoration_path.empty() && arg_device_traffic_replay_path.empty())
-      throw std::runtime_error("to load a checkpoint, FESVR must operate in device traffic replay mode.");
-
     device_composition = std::unique_ptr<device_composition_t>(
       new recorded_composition_t(
         *this,
