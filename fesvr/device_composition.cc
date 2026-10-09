@@ -24,21 +24,43 @@ void device_composition_t::handle_command(command_t cmd)
     if (m_active_cmd_sequence) throw std::runtime_error("device_composition_t can only track one active command.");
     m_active_cmd_sequence = cmd_service_sequence_t::alloc(cmd, m_device_traffic_listeners.size());
 
-    bool cmd_responded = false;
-    uint64_t cmd_response_value = 0;
+    // The response capture state is shared with every copy of the intercepting closure: a device may keep a copy of
+    // the command and respond after this function returns (e.g. bcd_t answers console reads from tick()).
+    struct response_capture_t
+    {
+      bool in_service = true;
+      bool responded = false;
+      uint64_t value = 0;
+    };
+    auto capture = std::make_shared<response_capture_t>();
     command_t::callback_t cmd_respond_cb = cmd.cb;
     // intercept the command response with lambda closure
-    cmd.cb = [&cmd_responded, &cmd_response_value, cmd_respond_cb](uint64_t resp) mutable {
-      if (cmd_responded) throw std::runtime_error("device_composition_t cannot track command that sends multiple responds.");
-      cmd_responded = true;
-      cmd_response_value = resp;
+    cmd.cb = [capture, cmd_respond_cb](uint64_t resp) {
+      if (capture->in_service)
+      {
+        if (capture->responded) throw std::runtime_error("device_composition_t cannot track command that sends multiple responds.");
+        capture->responded = true;
+        capture->value = resp;
+      }
+      else
+      {
+        // The servicing sequence was already handed to the listeners, so this response can't be part of it.
+        static bool warned = false;
+        if (!warned)
+        {
+          warned = true;
+          fesvr_log_normal(stderr, "Warning: a device responded to a command after servicing it. The response is delivered to the target, "
+                                   "but device traffic capture can't track it, so a recording of this run won't replay faithfully.\n");
+        }
+      }
       cmd_respond_cb(resp);
     };
 
     do_handle_command(cmd);
+    capture->in_service = false;
 
-    m_active_cmd_sequence->responded = cmd_responded;
-    m_active_cmd_sequence->response_value = cmd_response_value;
+    m_active_cmd_sequence->responded = capture->responded;
+    m_active_cmd_sequence->response_value = capture->value;
     m_active_cmd_sequence->htif_exitcode = m_htif.exitcode;
 
     for (auto l: m_device_traffic_listeners)
