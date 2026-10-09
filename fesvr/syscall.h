@@ -19,7 +19,7 @@ class target_cwd;
 class fds_t
 {
  public:
-  target_cwd* cwd_info;
+  target_cwd* cwd_info = nullptr;
   reg_t alloc(int fd);
   void dealloc(reg_t fd);
   int lookup(reg_t fd);
@@ -38,7 +38,7 @@ class syscall_t : public device_t
 
  private:
   strace* m_strace;
-  target_cwd* m_target_cwd;
+  target_cwd* m_target_cwd = nullptr; // only set by init_target_cwd(), which runs in real-device mode
   int stdout_dump_fd = -1;
   int stderr_dump_fd = -1;
   const char* identity() { return "syscall_proxy"; }
