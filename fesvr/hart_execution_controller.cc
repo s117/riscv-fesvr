@@ -34,6 +34,10 @@ bool hart_execution_controller_t::set_unconditional_breakpoint(uint32_t hart_id,
 void hart_execution_controller_t::clear_unconditional_breakpoint(uint32_t hart_id)
 {
   m_htif.write_hart_exec_ctrl_reg(hart_id, CR_EXE_CTRL_RESET, EXE_CTRL_MASK_UNCONDITIONAL);
+
+  auto &unconditional_bp_slot = m_hart_bp_slots[hart_id][EXE_CTRL_MASK_UNCONDITIONAL];
+  unconditional_bp_slot.active = false;
+  unconditional_bp_slot.handler = breakpoint_handler_t();
 }
 
 bool hart_execution_controller_t::set_instret_count_breakpoint(uint32_t hart_id, size_t trigger_incremental, const hart_execution_controller_t::breakpoint_handler_t &handler)
