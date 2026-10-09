@@ -838,10 +838,15 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
   auto &recorded_composition = dynamic_cast<recorded_composition_t &>(*device_composition);
   for (uint32_t i = 0; i < header->num_hart; i++)
   {
-    auto hart_i_recording_sha256 = recorded_composition.get_recording_sha256(i);
-    assert(hart_i_recording_sha256.size() == sizeof header->harts[i].traffic_recording_sha256);
-    if (memcmp(header->harts[i].traffic_recording_sha256, hart_i_recording_sha256.data(), hart_i_recording_sha256.size()) != 0)
-      throw std::runtime_error("Cannot use the checkpoint file " + checkpoint_path + " because it requires HART " + std::to_string(i) + " to load a device traffic recording with SHA256 " + crypto_digest_t::to_string(header->harts[i].traffic_recording_sha256, sizeof(header->harts[i].traffic_recording_sha256)) + ", however the SHA256 of the current loaded recording is " + crypto_digest_t::to_string(hart_i_recording_sha256) + ".");
+    // Only the main FESVR reads a persistent recording, so only it can verify the recording's SHA256. A mirror FESVR
+    // replays the traffic forwarded by the main FESVR, which has verified it against the same checkpoint.
+    if (is_main_fesvr)
+    {
+      auto hart_i_recording_sha256 = recorded_composition.get_recording_sha256(i);
+      assert(hart_i_recording_sha256.size() == sizeof header->harts[i].traffic_recording_sha256);
+      if (memcmp(header->harts[i].traffic_recording_sha256, hart_i_recording_sha256.data(), hart_i_recording_sha256.size()) != 0)
+        throw std::runtime_error("Cannot use the checkpoint file " + checkpoint_path + " because it requires HART " + std::to_string(i) + " to load a device traffic recording with SHA256 " + crypto_digest_t::to_string(header->harts[i].traffic_recording_sha256, sizeof(header->harts[i].traffic_recording_sha256)) + ", however the SHA256 of the current loaded recording is " + crypto_digest_t::to_string(hart_i_recording_sha256) + ".");
+    }
 
     if (header->harts[i].hart_state_size > hart_checkpoint_t::HART_STATE_STORAGE_MAX)
       throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because the full state of HART " + std::to_string(i) + " is " + std::to_string(header->harts[i].hart_state_size) + " bytes, which exceeds the " + std::to_string(hart_checkpoint_t::HART_STATE_STORAGE_MAX) + " bytes storage.");
