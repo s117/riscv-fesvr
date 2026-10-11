@@ -24,6 +24,7 @@ namespace device_traffic_persistent
   static const uint32_t PACKETS_FILE_MAGIC = 0x38837587; /** Dialing DVTF-PKTS on an ITU-T E.161 keypad */
   static const uint32_t INDEX_FILE_MAGIC = 0x38834639;   /** Dialing DVTF-INDX on an ITU-T E.161 keypad */
   static const uint32_t SHA256_FILE_MAGIC = 0x38833478;  /** Dialing DVTF-DGST on an ITU-T E.161 keypad */
+  static const char *const BOOT_ELF_FILE_NAME = "boot.elf"; /** The ELF loaded at boot, saved in the recording folder */
 
 
   enum packet_type_t
@@ -436,6 +437,15 @@ public:
   void on_target_spec_known(const riscv_target_spec_t &target_spec) override;
 
   void on_cmd_serviced(cmd_service_sequence_t *sequence) override;
+
+  /**
+   * Save a copy of the ELF loaded at boot into the recording folder (as BOOT_ELF_FILE_NAME), so that replay needs nothing
+   * but the recording.
+   * @param host_path The ELF to save.
+   * @param expected_sha256 The SHA256 of the loaded ELF; the copy is verified against it.
+   * @throw std::runtime_error When the copy fails or doesn't match.
+   */
+  void save_boot_elf(const std::string &host_path, const uint8_t expected_sha256[32]);
 
 protected:
   std::string m_output_base_folder;

@@ -493,6 +493,30 @@ void device_traffic_recorder_t::on_target_spec_known(const riscv_target_spec_t &
   m_initialized = true;
 }
 
+void device_traffic_recorder_t::save_boot_elf(const std::string &host_path, const uint8_t expected_sha256[32])
+{
+  std::string output_path = m_output_base_folder + PATH_SEP + device_traffic_persistent::BOOT_ELF_FILE_NAME;
+  {
+    std::ifstream src(host_path, std::ios::binary);
+    if (!src)
+      throw std::runtime_error("Cannot open the boot ELF " + host_path + " to save it into the device traffic recording.");
+    std::ofstream dst(output_path, std::ios::binary | std::ios::trunc);
+    if (!dst)
+      throw std::runtime_error("Cannot open file to write the boot ELF: " + output_path);
+    dst << src.rdbuf();
+    dst.close();
+    if (!dst || src.bad())
+      throw std::runtime_error("Failed to save the boot ELF " + host_path + " to " + output_path + ".");
+  }
+
+  // the copy must be exactly the ELF that was loaded: replay checks it against the target spec of the recording
+  auto saved_sha256 = crypto_digest_t::digest_file("sha256", output_path.c_str(), nullptr);
+  if (saved_sha256.size() != 32 || memcmp(saved_sha256.data(), expected_sha256, 32) != 0)
+    throw std::runtime_error(
+      "The boot ELF saved to " + output_path + " has SHA256 " + crypto_digest_t::to_string(saved_sha256) +
+      ", but the loaded ELF has SHA256 " + crypto_digest_t::to_string(expected_sha256, 32) + ".");
+}
+
 void device_traffic_recorder_t::on_cmd_serviced(cmd_service_sequence_t *sequence)
 {
   assert(m_initialized);

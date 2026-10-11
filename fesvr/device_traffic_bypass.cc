@@ -3,6 +3,7 @@
 #include "device_traffic_bypass.h"
 
 device_composition_t *device_traffic_bypass_manager_t::g_main_composition = nullptr;
+std::string device_traffic_bypass_manager_t::g_main_boot_elf;
 
 bool device_traffic_bypass_manager_t::has_main_composition() { return device_traffic_bypass_manager_t::g_main_composition != nullptr; }
 
@@ -16,3 +17,7 @@ device_composition_t &device_traffic_bypass_manager_t::get_main_composition()
 {
   return *device_traffic_bypass_manager_t::g_main_composition;
 }
+
+void device_traffic_bypass_manager_t::set_main_boot_elf(const std::string &path) { g_main_boot_elf = path; }
+
+const std::string &device_traffic_bypass_manager_t::get_main_boot_elf() { return g_main_boot_elf; }

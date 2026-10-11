@@ -134,6 +134,19 @@ htif_t::htif_t(const std::vector<std::string> &args)
   if (!checkpoint_restoration_path.empty() && arg_device_traffic_replay_path.empty())
     throw std::runtime_error("to load a checkpoint, FESVR must operate in device traffic replay mode.");
 
+  // In replay mode (and on a mirror) the boot ELF comes from the recording, and the program arguments from the recorded
+  // traffic (sys_getmainvars), so target arguments would be silently ignored: reject them.
+  if ((!is_main_fesvr || !arg_device_traffic_replay_path.empty()) && !targs.empty())
+  {
+    std::string joined_targs;
+    for (auto &a: targs)
+      joined_targs += (joined_targs.empty() ? "" : " ") + a;
+    throw std::runtime_error(
+      std::string(is_main_fesvr ? "in device traffic replay mode" : "on a mirror FESVR") +
+      ", the boot ELF comes from the recording's " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
+      " and the program arguments from the recorded traffic; remove the target program and its arguments: " + joined_targs);
+  }
+
   if (!is_main_fesvr)
   {
     // This FESVR instance is not the main instance, it simply replays the device traffic supplied by the main instance
@@ -143,6 +156,9 @@ htif_t::htif_t(const std::vector<std::string> &args)
         std::unique_ptr<cmd_service_sequence_supplier_t>(
           new cmd_service_sequence_buffer_t(
             device_traffic_bypass_manager_t::get_main_composition()))));
+
+    // a mirror boots the same ELF as the main FESVR
+    boot_elf_path = device_traffic_bypass_manager_t::get_main_boot_elf();
   }
   else
   {
@@ -179,6 +195,9 @@ htif_t::htif_t(const std::vector<std::string> &args)
       else
         syscall_proxy.init_target_cwd(arg_target_init_cwd.c_str());
 
+      // after chroot and target cwd are set up, as targs[0] is a target path in chroot mode
+      boot_elf_path = resolve_boot_elf_path();
+
       real_device_composition->register_device(syscall_proxy);
       real_device_composition->register_device(bcd);
       for (auto d: dynamic_devices)
@@ -193,10 +212,23 @@ htif_t::htif_t(const std::vector<std::string> &args)
 
       recorded_composition->get_spec_from_traffic_source(recording_spec);
 
+      // the ELF loaded at boot is part of the recording; the target spec check in start() verifies its SHA256
+      std::string recorded_boot_elf = arg_device_traffic_replay_path + "/" + device_traffic_persistent::BOOT_ELF_FILE_NAME;
+      static const uint8_t no_elf_sha256[sizeof(recording_spec.load_elf_sha256)] = {0};
+      if (access(recorded_boot_elf.c_str(), F_OK) == 0)
+        boot_elf_path = recorded_boot_elf;
+      else if (memcmp(recording_spec.load_elf_sha256, no_elf_sha256, sizeof(no_elf_sha256)) != 0)
+        throw std::runtime_error(
+          "the device traffic recording " + arg_device_traffic_replay_path + " has no " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
+          " (it was probably recorded before the boot ELF was saved into recordings): copy the ELF it was recorded with" +
+          " (usually pk) there as " + device_traffic_persistent::BOOT_ELF_FILE_NAME + ", its SHA256 must be " +
+          crypto_digest_t::to_string(recording_spec.load_elf_sha256, sizeof(recording_spec.load_elf_sha256)) + ".");
+
       device_composition = std::unique_ptr<device_composition_t>(recorded_composition);
     }
     // Register this FESVR instance as the main instance
     device_traffic_bypass_manager_t::set_main_composition(*device_composition);
+    device_traffic_bypass_manager_t::set_main_boot_elf(boot_elf_path);
 
     // Setup final state dump
     if (!arg_final_state_dump_path.empty())
@@ -217,8 +249,6 @@ htif_t::htif_t(const std::vector<std::string> &args)
     if (g_fesvr_verbose_output)
       device_composition->register_traffic_listener(traffic_debug_listener);
   }
-
-  boot_elf_path = resolve_boot_elf_path();
 }
 
 htif_t::~htif_t()
@@ -301,6 +331,11 @@ void htif_t::start()
   target_spec.mem_sz_mb = mem_mb();
   memcpy(target_spec.load_elf_sha256, loaded_elf_sha256, sizeof(target_spec.load_elf_sha256));
   device_composition->on_target_spec_known(target_spec);
+
+  // make the recording self-contained: save the boot ELF next to the traffic (also when the ELF wasn't loaded because a
+  // checkpoint was restored, in which case the checkpoint's ELF SHA256 has been matched against the replayed recording)
+  if (traffic_recorder && !boot_elf_path.empty())
+    traffic_recorder->save_boot_elf(boot_elf_path, loaded_elf_sha256);
 
   // defrost all HARTs, execution start from here
   for (uint32_t c = 0; c < num_cores(); c++)
