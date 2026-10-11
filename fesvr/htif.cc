@@ -217,6 +217,8 @@ htif_t::htif_t(const std::vector<std::string> &args)
     if (g_fesvr_verbose_output)
       device_composition->register_traffic_listener(traffic_debug_listener);
   }
+
+  boot_elf_path = resolve_boot_elf_path();
 }
 
 htif_t::~htif_t()
@@ -305,24 +307,37 @@ void htif_t::start()
     hart_execution_ctrl.clear_unconditional_breakpoint(c);
 }
 
-void htif_t::load_program()
+std::string htif_t::resolve_boot_elf_path()
 {
   if (targs.size() == 0 || targs[0] == "none")
-    return;
+    return "";
 
-  std::string path;
+  if (!chroot.empty())
+  {
+    // in chroot mode the program is a target path: resolved against the target cwd inside the chroot, no host fallback
+    std::string host_path = syscall_proxy.target_path_to_host(targs[0]);
+    if (access(host_path.c_str(), F_OK) != 0)
+      throw std::runtime_error("could not open " + targs[0] + " in chroot " + chroot + " (target cwd " + syscall_proxy.get_target_cwd() + ")");
+    return host_path;
+  }
+
   if (access(targs[0].c_str(), F_OK) == 0)
-    path = targs[0];
-  else if (targs[0].find('/') == std::string::npos)
+    return targs[0];
+  if (targs[0].find('/') == std::string::npos)
   {
     std::string test_path = PREFIX TARGET_DIR + targs[0];
     if (access(test_path.c_str(), F_OK) == 0)
-      path = test_path;
+      return test_path;
   }
+  throw std::runtime_error("could not open " + targs[0]);
+}
 
-  if (path.empty())
-    throw std::runtime_error("could not open " + targs[0]);
+void htif_t::load_program()
+{
+  if (boot_elf_path.empty())
+    return;
 
+  const std::string &path = boot_elf_path;
   std::map<std::string, uint64_t> symbols = load_elf(path.c_str(), &mem);
   auto elf_sha256 = crypto_digest_t::digest_file("sha256", path.c_str(), nullptr);
   assert(elf_sha256.size() == sizeof(loaded_elf_sha256));

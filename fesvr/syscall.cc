@@ -146,6 +146,18 @@ void syscall_t::init_target_cwd(const char* cwd)
   fds.cwd_info = m_target_cwd;
 }
 
+std::string syscall_t::target_path_to_host(const std::string &path)
+{
+  assert(m_target_cwd);
+  return m_target_cwd->to_host_path(path);
+}
+
+std::string syscall_t::get_target_cwd()
+{
+  assert(m_target_cwd);
+  return m_target_cwd->get_target_cwd();
+}
+
 std::string syscall_t::do_chroot(const char* fn)
 {
   if (!htif->chroot.empty() && *fn == '/')

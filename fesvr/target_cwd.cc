@@ -96,6 +96,10 @@ int target_cwd::target_chdir(const char *path) {
   return 0;
 }
 
+std::string target_cwd::to_host_path(const std::string &target_path) const {
+  return m_syscall->do_chroot(normalize_path(m_target_cwd, target_path).c_str());
+}
+
 char *target_cwd::target_getcwd(char *buf, size_t size) {
   if (size < m_target_cwd.size() + 1) {
 

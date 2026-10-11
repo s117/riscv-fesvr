@@ -35,6 +35,9 @@ class syscall_t : public device_t
   virtual void enable_strace(const char* output_path);
   virtual void dump_std_out_err(const char* stdout_dump_path, const char* stderr_dump_path);
   virtual void init_target_cwd(const char* cwd);
+  // Convert a target path into the host path to access (only valid after init_target_cwd(), i.e. in real-device mode)
+  std::string target_path_to_host(const std::string &path);
+  std::string get_target_cwd();
 
  private:
   strace* m_strace;

@@ -88,6 +88,7 @@ private:
   std::vector<std::string> targs;
   std::string sig_file;
   std::string chroot;
+  std::string boot_elf_path; // host path of the ELF loaded at boot, empty if none
   addr_t sig_addr; // torture
   addr_t sig_len; // torture
 
@@ -110,6 +111,7 @@ private:
   virtual void write_packet(const packet_t& packet);
 
   void set_chroot(const char* where);
+  std::string resolve_boot_elf_path();
   const std::vector<std::string>& target_args() { return targs; }
 
   friend class memif_t;
