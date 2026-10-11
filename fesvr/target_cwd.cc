@@ -2,6 +2,8 @@
 #include <climits>
 #include <cstring>
 #include <unistd.h>
+#include <string>
+#include <vector>
 #include "syscall.h"
 #include "htif.h"
 #include "target_cwd.h"
@@ -9,83 +11,40 @@
 //#define _DEBUG_MSG(...) fprintf(stderr, __VA_ARGS__)
 #define _DEBUG_MSG(...)
 
-#if defined(__APPLE__) && defined(__MACH__)
-/*
- * Reverse memchr()
- * Find the last occurrence of 'c' in the buffer 's' of size 'n'.
- * (macOS doesn't provide this function)
- */
-static void *memrchr(const void *s, int c, size_t n) {
-    const unsigned char *cp;
-
-    if (n != 0) {
-       cp = (unsigned char *)s + n;
-       do {
-           if (*(--cp) == (unsigned char)c)
-               return (void *)cp;
-       } while (--n != 0);
+std::string target_cwd::normalize_path(const std::string &pwd, const std::string &path) {
+  // Resolve a relative path against pwd, drop empty and "." components, and let ".." remove the previous component
+  // (".." at the root stays at the root). This is purely lexical: no symlink is followed.
+  std::vector<std::string> components;
+  auto push_components = [&components](const std::string &p) {
+    size_t begin = 0;
+    while (begin <= p.size()) {
+      size_t end = p.find('/', begin);
+      if (end == std::string::npos)
+        end = p.size();
+      std::string component = p.substr(begin, end - begin);
+      if (component == "..") {
+        if (!components.empty())
+          components.pop_back();
+      } else if (!component.empty() && component != ".") {
+        components.push_back(std::move(component));
+      }
+      begin = end + 1;
     }
-    return (void *)0;
-}
-#endif
+  };
 
-static char *normalize_path(const char *pwd, const char *src, char *res) {
-  size_t res_len;
-  size_t src_len = strlen(src);
+  // pwd goes through the same rules, so a pwd that is not normalized (or not absolute) still gives a correct result
+  if (path.empty() || path[0] != '/')
+    push_components(pwd);
+  push_components(path);
 
-  const char *ptr = src;
-  const char *end = &src[src_len];
-  const char *next;
-
-  if (src_len == 0 || src[0] != '/') {
-    // relative path
-    size_t pwd_len;
-
-    pwd_len = strlen(pwd);
-    memcpy(res, pwd, pwd_len);
-    res_len = pwd_len;
-  } else {
-    res_len = 0;
+  if (components.empty())
+    return "/";
+  std::string result;
+  for (const auto &component: components) {
+    result += '/';
+    result += component;
   }
-
-  for (ptr = src; ptr < end; ptr = next + 1) {
-    size_t len;
-    next = (char *) memchr(ptr, '/', end - ptr);
-    if (next == NULL) {
-      next = end;
-    }
-    len = next - ptr;
-    switch (len) {
-      case 2:
-        if (ptr[0] == '.' && ptr[1] == '.') {
-          const char *slash = (char *) memrchr(res, '/', res_len);
-          if (slash != NULL) {
-            res_len = slash - res;
-          }
-          continue;
-        }
-        break;
-      case 1:
-        if (ptr[0] == '.') {
-          continue;
-        }
-        break;
-      case 0:
-        continue;
-    }
-
-    if (res_len != 1)
-      res[res_len++] = '/';
-
-    memcpy(&res[res_len], ptr, len);
-    res_len += len;
-  }
-
-  if (res_len == 0) {
-    res[res_len++] = '/';
-  }
-  res[res_len] = '\0';
-  return res;
+  return result;
 }
 
 target_cwd::target_cwd(syscall_t *syscall) : m_syscall(syscall), m_fd_cwd(AT_FDCWD) {
@@ -112,18 +71,22 @@ target_cwd::target_cwd(syscall_t *syscall) : m_syscall(syscall), m_fd_cwd(AT_FDC
 }
 
 int target_cwd::target_chdir(const char *path) {
-  char normalized_path[PATH_MAX];
-  normalize_path(m_target_cwd.c_str(), path, normalized_path);
-  std::string new_host_path = m_syscall->do_chroot(normalized_path);
+  std::string normalized_path = normalize_path(m_target_cwd, path);
+  if (normalized_path.size() >= PATH_MAX) {
+    _DEBUG_MSG("Target chdir() failed %s (path too long)\n", path);
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+  std::string new_host_path = m_syscall->do_chroot(normalized_path.c_str());
 
   int new_fd_dir = openat(m_fd_cwd, new_host_path.c_str(), O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NONBLOCK);
 
   if (new_fd_dir < 0) {
-    _DEBUG_MSG("Target chdir() failed %s %s %s (%s)\n", path, normalized_path, new_host_path.c_str(), strerror(errno));
+    _DEBUG_MSG("Target chdir() failed %s %s %s (%s)\n", path, normalized_path.c_str(), new_host_path.c_str(), strerror(errno));
     return -1;
   }
 
-  _DEBUG_MSG("Target chdir() succeed %s %s %s, new fd_dir = %d\n", path, normalized_path, new_host_path.c_str(),
+  _DEBUG_MSG("Target chdir() succeed %s %s %s, new fd_dir = %d\n", path, normalized_path.c_str(), new_host_path.c_str(),
              new_fd_dir);
 
   close(m_fd_cwd);
