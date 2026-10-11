@@ -27,6 +27,16 @@
  *   2.
  * 6). Reset a function:
  *   1. Write the corresponding bits to CR_EXE_CTRL_RESET.
+ *
+ * When the triggers apply:
+ *   - A HART freezes at an instruction boundary, before the next instruction executes, whatever that instruction is
+ *     (an illegal or faulting instruction doesn't bypass a trigger).
+ *   - A frozen HART keeps servicing the HTIF, and its architectural state (PC, registers, counters) is precise, so the
+ *     host can read or replace it before defrosting.
+ *   - A write to ENABLE takes effect at the next instruction boundary. The count down counts the instructions retired
+ *     from that boundary on. A trap that doesn't retire its instruction isn't counted.
+ *   - Triggers met at the same boundary freeze the HART together. When the count down runs out right before a PC
+ *     breakpoint's instruction, the HART may freeze twice at that PC: for the count down, then for the PC breakpoint.
  */
 
 static constexpr uint64_t EXE_CTRL_MASK_UNCONDITIONAL = 1 << 0;
