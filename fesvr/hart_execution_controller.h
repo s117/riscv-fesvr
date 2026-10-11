@@ -7,7 +7,7 @@
 #include <functional>
 #include <cstddef>
 #include <vector>
-#include <map>
+#include <array>
 #include "packet.h"
 #include "hart_execution_reg.h"
 
@@ -59,7 +59,7 @@ public:
    *                for defrost the harts at a proper time using the defrost() function.
    * @return True if the breakpoint slot is free and successfully configured. False if the breakpoint slot is being used.
    */
-  bool set_instret_count_breakpoint(uint32_t hart_id, size_t trigger_incremental, const hart_execution_controller_t::breakpoint_handler_t &handler);
+  bool set_instret_count_breakpoint(uint32_t hart_id, size_t trigger_incremental, breakpoint_handler_t handler);
 
   /**
    * Clear the instruction retirement based breakpoint.
@@ -84,7 +84,7 @@ public:
    * @return True if any PC breakpoint slot is free and successfully configured. False if all the PC breakpoint slots are being used or
    *         the specified PC has been previously configured and waiting to be triggered.
    */
-  bool set_pc_breakpoint(uint32_t hart_id, addr_t pc, const breakpoint_handler_t &handler);
+  bool set_pc_breakpoint(uint32_t hart_id, addr_t pc, breakpoint_handler_t handler);
 
   /**
    * Clear a PC breakpoint.
@@ -104,7 +104,7 @@ public:
    *                for defrost the harts at a proper time using the defrost() function.
    * @return True if the breakpoint slot is free and successfully configured. False if the breakpoint slot is being used.
    */
-  bool set_unconditional_breakpoint(uint32_t hart_id, const breakpoint_handler_t &handler);
+  bool set_unconditional_breakpoint(uint32_t hart_id, breakpoint_handler_t handler);
 
   /**
    * Clear the instruction retirement based breakpoint.
@@ -141,15 +141,36 @@ private:
    */
   void on_hart_frozen(uint32_t hart_id, reg_t frozen_reg);
 
+  /**
+   * Constant, the number of breakpoint slots of a HART, one per EXE_CTRL_MASK_* bit.
+   */
+  static constexpr size_t NUM_BREAKPOINT_SLOT = 6;
+
   struct breakpoint_slot_t
   {
-    bool active = false;
     breakpoint_handler_t handler;
     uint64_t slot_data = 0;
   };
 
-  using hart_breakpoint_slots_t = std::map<reg_t, breakpoint_slot_t>;
-  std::vector<hart_breakpoint_slots_t> m_hart_bp_slots;
+  struct hart_breakpoints_t
+  {
+    // indexed by the bit position of the slot's EXE_CTRL_MASK_* bit
+    std::array<breakpoint_slot_t, NUM_BREAKPOINT_SLOT> slots;
+    // EXE_CTRL_MASK_* bits of the active slots
+    reg_t active = 0;
+  };
+
+  /**
+   * Activate a breakpoint slot.
+   */
+  void arm_slot(uint32_t hart_id, reg_t mask, breakpoint_handler_t handler, uint64_t slot_data = 0);
+
+  /**
+   * Deactivate a breakpoint slot and drop its handler.
+   */
+  void disarm_slot(uint32_t hart_id, reg_t mask);
+
+  std::vector<hart_breakpoints_t> m_hart_bps;
   htif_t &m_htif;
 };
 
