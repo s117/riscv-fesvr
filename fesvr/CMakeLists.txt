@@ -35,6 +35,8 @@ set(
         device_traffic_bypass.h
         device_traffic_persistent.h
         checkpoint_format.h
+        hart_state_format.h
+        little_endian.h
         ckpt_desc_reader.h
         rfb.h
         gzstream.h
