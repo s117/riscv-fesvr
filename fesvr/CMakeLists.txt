@@ -5,8 +5,8 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(OpenSSL)
 
-if (NOT DEFINED PREFIX)
-    message(FATAL_ERROR "Variable PREFIX is not set, give it a value so the macro PREFIX can be determined")
+if (NOT DEFINED RISCV_INSTALL_PREFIX)
+    message(FATAL_ERROR "Variable RISCV_INSTALL_PREFIX is not set, give it a value so the macro PREFIX can be determined")
 endif ()
 
 set(
@@ -81,7 +81,7 @@ set(
 )
 
 add_library(fesvr-interface INTERFACE)
-target_compile_definitions(fesvr-interface INTERFACE PREFIX="${PREFIX}")
+target_compile_definitions(fesvr-interface INTERFACE PREFIX="${RISCV_INSTALL_PREFIX}")
 target_sources(fesvr-interface INTERFACE
         FILE_SET HEADERS
         BASE_DIRS ..
