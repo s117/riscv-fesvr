@@ -365,7 +365,6 @@ reg_t syscall_t::sys_lstat(reg_t pname, reg_t len, reg_t pbuf, reg_t a3, reg_t a
 
   struct stat buf;
   reg_t ret = sysret_errno(AT_SYSCALL(fstatat, RISCV_AT_FDCWD, &name[0], &buf, AT_SYMLINK_NOFOLLOW));
-  riscv_stat rbuf(buf);
   if (ret == 0)
   {
     riscv_stat rbuf(buf);
