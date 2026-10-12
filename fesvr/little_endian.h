@@ -8,6 +8,12 @@
 
 #include <cstdint>
 
+// The recording and checkpoint files are little-endian, and most of them are written and read as packed structs in the
+// host's byte order (see checkpoint_format.h and device_traffic_persistent.h). That is only correct on a little-endian
+// host, such as x86-64 and ARM64; a big-endian host needs those readers and writers to convert with the functions here.
+static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__,
+              "the recording and checkpoint file formats are little-endian, this host is not");
+
 namespace little_endian
 {
   inline void put_le16(uint8_t *dst, uint16_t val)

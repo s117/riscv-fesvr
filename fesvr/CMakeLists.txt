@@ -34,6 +34,7 @@ set(
         device_traffic_capture.h
         device_traffic_bypass.h
         device_traffic_persistent.h
+        device_traffic_format.h
         checkpoint_format.h
         hart_state_format.h
         little_endian.h

@@ -867,11 +867,14 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
                                0);
   auto *header = (checkpoint_header_t *) header_buf.data();
   read_ckpt_data(&header->magic, sizeof(header->magic));
+  if (header->magic != checkpoint_header_t::RV64_CHECKPOINT_MAGIC)
+    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it has a bad magic number.");
+  read_ckpt_data(&header->version, sizeof(header->version));
+  if (header->version != checkpoint_header_t::FORMAT_VERSION)
+    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it is in checkpoint format version " + std::to_string(header->version) + ", but this build reads version " + std::to_string(checkpoint_header_t::FORMAT_VERSION) + ".");
   read_ckpt_data(&header->num_hart, sizeof(header->num_hart));
 
   // Validate before num_hart sizes the rest of the header, a wrong file could ask for an arbitrarily large buffer
-  if (header->magic != checkpoint_header_t::RV64_CHECKPOINT_MAGIC)
-    throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it has a bad magic number.");
   if (header->num_hart != num_cores())
     throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because it was created for system with " + std::to_string(header->num_hart) + " HART(s), however the current system is configured with " + std::to_string(num_cores()) + " HART(s).");
 
@@ -927,6 +930,7 @@ void htif_t::create_checkpoint(const std::string &output_filename)
   std::vector<char> header_buf(checkpoint_header_t::size(num_cores()), 0);
   auto *header = (checkpoint_header_t *) header_buf.data();
   header->magic = checkpoint_header_t::RV64_CHECKPOINT_MAGIC;
+  header->version = checkpoint_header_t::FORMAT_VERSION;
   header->num_hart = num_cores();
   header->mem_sz_mb = mem_mb();
   memcpy(header->load_elf_sha256, loaded_elf_sha256, sizeof(header->load_elf_sha256));
