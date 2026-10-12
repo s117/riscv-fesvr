@@ -20,6 +20,12 @@
 #include "device_traffic_format.h"
 #include "checksum.h"
 
+// Whether recordings are written gzip-compressed, the default of every build. Define it to 0 to write plain files, e.g.
+// to inspect them while debugging. Recordings are read either way.
+#ifndef FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT
+#define FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT 1
+#endif
+
 namespace device_traffic_persistent
 {
   /**
@@ -105,11 +111,8 @@ namespace device_traffic_persistent
      */
     void command_end();
 
-#ifdef FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT
+    // reads gzip-compressed and plain files alike, whatever FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT
     using raw_inputstream_t = igzstream;
-#else
-    using raw_inputstream_t = std::ifstream;
-#endif
 
 
     raw_inputstream_t m_index_istream;       /** File input stream for {path}.index. */
@@ -231,7 +234,7 @@ namespace device_traffic_persistent
      */
     uint32_t update_crc32(const void *data, size_t len);
 
-#ifdef FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT
+#if FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT
     using raw_outputstream_t = ogzstream;
 #else
     using raw_outputstream_t = std::ofstream;
