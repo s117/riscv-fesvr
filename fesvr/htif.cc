@@ -18,6 +18,7 @@
 #include "device_traffic_bypass.h"
 #include "ckpt_desc_reader.h"
 #include "checksum.h"
+#include "hart_state_format.h"
 
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
@@ -906,6 +907,10 @@ void htif_t::load_checkpoint(const std::string &checkpoint_path)
 
     if (header->harts[i].hart_state_size > hart_checkpoint_t::HART_STATE_STORAGE_MAX)
       throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because the full state of HART " + std::to_string(i) + " is " + std::to_string(header->harts[i].hart_state_size) + " bytes, which exceeds the " + std::to_string(hart_checkpoint_t::HART_STATE_STORAGE_MAX) + " bytes storage.");
+    uint32_t num_entries;
+    std::string why;
+    if (!hart_state_format::check_header(header->harts[i].hart_state_storage, header->harts[i].hart_state_size, num_entries, why))
+      throw std::runtime_error("Cannot load the checkpoint file " + checkpoint_path + " because the full state of HART " + std::to_string(i) + " is not usable: " + why + ".");
     std::vector<char> hart_state_buf(header->harts[i].hart_state_storage, header->harts[i].hart_state_storage + header->harts[i].hart_state_size);
     upload_hart_full_state(i, hart_state_buf);
 
@@ -948,6 +953,10 @@ void htif_t::create_checkpoint(const std::string &output_filename)
 
     // fill the hart_state field with the collected full state dump
     auto hart_state = download_hart_full_state(i);
+    uint32_t num_entries;
+    std::string why;
+    if (!hart_state_format::check_header((const uint8_t *) hart_state.data(), hart_state.size(), num_entries, why))
+      throw std::runtime_error("Cannot create checkpoint: the full state of HART " + std::to_string(i) + " sent by the target is not usable, because " + why + ".");
     if (hart_state.size() > hart_checkpoint_t::HART_STATE_STORAGE_MAX)
       throw std::runtime_error("Cannot create checkpoint: the size of HART " + std::to_string(i) + "'s full state dump (" + std::to_string(hart_state.size()) + " bytes) exceeded the pre-allocated budget (" + std::to_string(hart_checkpoint_t::HART_STATE_STORAGE_MAX) + " bytes).");
     header->harts[i].hart_state_size = hart_state.size();
