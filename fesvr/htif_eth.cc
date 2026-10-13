@@ -16,6 +16,7 @@
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#include <vector>
 
 #ifdef __APPLE__
 #include <net/bpf.h>
@@ -210,7 +211,8 @@ ssize_t htif_eth_t::read(void* buf, size_t max_size)
 
     return bytes;
   #elif __APPLE__
-    uint8_t buffer[buffer_len];
+    std::vector<uint8_t> buffer_storage(buffer_len);
+    uint8_t* const buffer = buffer_storage.data();
     if ((bytes = ::read(sock, buffer, buffer_len)) == -1) {
       timeouts++;
       debug("read failed (%s)\n",strerror(errno));

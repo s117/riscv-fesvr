@@ -391,10 +391,10 @@ void htif_t::reset()
 {
   uint32_t first_words[] = {mem_mb(), num_cores()};
   size_t al = chunk_align();
-  uint8_t chunk[(sizeof(first_words)+al-1)/al*al];
-  read_chunk(0, sizeof(chunk), chunk);
-  memcpy(chunk, first_words, sizeof(first_words));
-  write_chunk(0, sizeof(chunk), chunk);
+  std::vector<uint8_t> chunk_storage((sizeof(first_words)+al-1)/al*al);
+  read_chunk(0, chunk_storage.size(), chunk_storage.data());
+  memcpy(chunk_storage.data(), first_words, sizeof(first_words));
+  write_chunk(0, chunk_storage.size(), chunk_storage.data());
 
   for (uint32_t i = 0; i < num_cores(); i++)
   {
