@@ -65,7 +65,7 @@ public:
     fprintf(m_output_file, "  fd_t %s = %" PRIi64 "\n", param_name, value);
   }
 
-  void syscall_record_param_simple_ptr(const char *param_name, uintptr_t ptr_val, char io_direction) {
+  void syscall_record_param_simple_ptr(const char *param_name, uint64_t ptr_val, char io_direction) {
     if (!m_enabled)
       return;
     const char *type_prefix;
