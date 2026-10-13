@@ -984,12 +984,12 @@ void htif_t::create_checkpoint(const std::string &output_filename)
 void htif_t::setup_trap_for_next_checkpoint()
 {
   /**
-   * If mirrored FESVR exists (for timing simulator in 721sim), only the main FESVR of the leading functional simulator
-   * is allowed to create one checkpoint (cannot create more than one due shift in INTERLEAVE will lead to checker failure.
+   * Only the main FESVR creates checkpoints, a mirror FESVR (the timing simulator's in 721sim) doesn't.
    *
-   * If mirror doesn't exist, can create checkpoints as many as needed. Be aware of some tiny increment/decrement in the
-   * dynamic instruction count caused by shifting in step/INTERLEAVE.
-   *
+   * The count down freezes the hart right before the instruction at the count, so every checkpoint is taken at an
+   * exact instruction count, as many per run as asked for. With a mirror, the main FESVR freezes and saves the leading
+   * functional simulator. The HTIF ticks while it is frozen don't change what the mirror sees: the mirror replays the
+   * main FESVR's commands in order, and a hart waits for every syscall's response.
    */
   if (!is_main_fesvr) return;
   if (checkpoint_creation_list.empty()) return;
