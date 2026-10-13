@@ -6,6 +6,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#if defined(__APPLE__) && defined(__MACH__)
+#include <sys/syslimits.h>
+#endif
 #include <errno.h>
 #include <stdlib.h>
 #include <assert.h>
