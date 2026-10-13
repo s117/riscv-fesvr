@@ -132,7 +132,8 @@ htif_eth_t::htif_eth_t(const std::vector<std::string>& args)
 
   char buf[11];
   for (int i = 0; i < 4; i++) {
-      sprintf(buf, "/dev/bpf%i", i);
+      const int retval = snprintf(buf, sizeof(buf), "/dev/bpf%i", i);
+      assert(0 <= retval && retval < (int) sizeof(buf));
       if ((sock = open(buf, O_RDWR)) != -1)
           break;
   }
