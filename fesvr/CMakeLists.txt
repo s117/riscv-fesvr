@@ -36,6 +36,7 @@ set(
         device_traffic_persistent.h
         device_traffic_format.h
         checkpoint_format.h
+        fesvr_build_info.h
         hart_state_format.h
         little_endian.h
         ckpt_desc_reader.h
@@ -78,6 +79,22 @@ set(
         crypto_digest.cc
         checksum.cc
         target_cwd.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/fesvr_build_info.cc
+)
+
+# Build information (git version, compiler, date...) of libfesvr, see fesvr_build_info.h. An ALL custom target runs
+# on every build; the script rewrites fesvr_build_info.cc only when its content changed.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" fesvr_build_type_upper)
+add_custom_target(
+        fesvr-build-info ALL
+        BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/fesvr_build_info.cc
+        COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/stamp-build-info.sh
+                ${CMAKE_CURRENT_BINARY_DIR}/fesvr_build_info.cc fesvr "FESVR (libfesvr)" ${CMAKE_CURRENT_SOURCE_DIR}/..
+                ${CMAKE_CXX_COMPILER}
+                "${CMAKE_BUILD_TYPE} ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${fesvr_build_type_upper}}"
+                ${CMAKE_SYSTEM}
+        COMMENT "Gathering the build information of libfesvr"
+        VERBATIM
 )
 
 add_library(fesvr-interface INTERFACE)
@@ -94,6 +111,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-static PUBLIC fesvr-interface)
+add_dependencies(fesvr-static fesvr-build-info)
 target_link_libraries(fesvr-static PUBLIC ZLIB::ZLIB)
 target_link_libraries(fesvr-static PUBLIC Threads::Threads)
 target_link_libraries(fesvr-static PUBLIC OpenSSL::Crypto)
@@ -104,6 +122,7 @@ add_library(
         ${fesvr_hdrs}
 )
 target_link_libraries(fesvr-shared PUBLIC fesvr-interface)
+add_dependencies(fesvr-shared fesvr-build-info)
 target_link_libraries(fesvr-shared PUBLIC ZLIB::ZLIB)
 target_link_libraries(fesvr-shared PUBLIC Threads::Threads)
 target_link_libraries(fesvr-shared PUBLIC OpenSSL::Crypto)
