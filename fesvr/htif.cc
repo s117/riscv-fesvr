@@ -583,6 +583,11 @@ int htif_t::run()
       {
         command_t cmd(this, tohost, fromhost_callbacks[coreid], coreid);
         device_composition->handle_command(cmd);
+        // The command ended the run (e.g. the program exited): dump the final state now, while the hart still waits
+        // on it, so that the count is the one before the command. Once responded, the hart would run on until
+        // whichever tick serves the dump.
+        if (exitcode != 0)
+          dump_final_state();
       }
 
       device_composition->tick();
