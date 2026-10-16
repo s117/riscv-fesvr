@@ -29,6 +29,23 @@ class htif_t
   bool done();
   int exit_code();
 
+  // Why the run finished, as the final state dump (+final-state-dump) reports it
+  enum class finish_reason_t
+  {
+    none,
+    target_exit,         // the program exited (or a test wrote its result to tohost), with exit_code()
+    checkpoints_created, // the last checkpoint of +create-checkpoint was created
+    instret_limit,       // the simulator reached its instruction limit (e.g. -e)
+    debug_quit,          // the user quit the simulator's interactive debug mode
+    interrupted,         // SIGINT or SIGTERM
+    error,               // the FESVR failed (no hart state is dumped)
+  };
+
+  // End the run for a reason the simulator decides (e.g. its instruction limit). This sends no packet, it only asks the
+  // FESVR loop in run() to stop: the simulator then ticks the HTIF until it is done, with its harts between steps, and
+  // the FESVR stops the run through stop() (dumping the final state). The first reason set is kept.
+  void request_stop(finish_reason_t reason);
+
   virtual reg_t read_cr(uint32_t coreid, uint16_t regnum);
   virtual reg_t write_cr(uint32_t coreid, uint16_t regnum, reg_t val);
 
@@ -49,8 +66,14 @@ class htif_t
   FILE* stats_dump_fd = NULL;
   bool is_main_fesvr;
 
+  finish_reason_t finish_reason = finish_reason_t::none;
+  std::string finish_error; // the error, for finish_reason_t::error
+  bool stop_requested = false;
+
+  void set_finish_reason(finish_reason_t reason);
   void set_state_dump_path(std::string dump_path);
   void dump_final_state();
+  void dump_final_error(const std::string &what);
 
   virtual void read_chunk(addr_t taddr, size_t len, void* dst);
   virtual void write_chunk(addr_t taddr, size_t len, const void* src);

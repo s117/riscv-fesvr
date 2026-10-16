@@ -37,11 +37,13 @@
 bool g_fesvr_verbose_output = false;
 
 static volatile bool signal_exit = false;
+static volatile sig_atomic_t signal_exit_sig = 0; // the signal that set signal_exit, for the final state dump
 static void handle_signal(int sig)
 {
   if (sig == SIGABRT || signal_exit) // someone set up us the bomb!
     exit(-1);
   signal_exit = true;
+  signal_exit_sig = sig;
   signal(sig, &handle_signal);
 }
 
@@ -90,6 +92,7 @@ htif_t::htif_t(const std::vector<std::string> &args)
   std::string arg_recorded_device_traffic_path;
   std::string arg_device_traffic_record_path;
   std::string arg_device_traffic_replay_path;
+  std::string arg_create_checkpoint_path;
 
   for (auto &arg: hargs)
   {
@@ -116,9 +119,7 @@ htif_t::htif_t(const std::vector<std::string> &args)
     else if (arg.find("+dev-traffic-replay=") == 0)
       arg_device_traffic_replay_path = arg.substr(strlen("+dev-traffic-replay="));
     else if (arg.find("+create-checkpoint=") == 0)
-    {
-      checkpoint_creation_list = ckpt_desc_file_read(arg.substr(strlen("+create-checkpoint=")));
-    }
+      arg_create_checkpoint_path = arg.substr(strlen("+create-checkpoint="));
     else if (arg.find("+load-checkpoint=") == 0)
       checkpoint_restoration_path = arg.substr(strlen("+load-checkpoint="));
     else if (arg == "+verbose")
@@ -128,127 +129,139 @@ htif_t::htif_t(const std::vector<std::string> &args)
 
   is_main_fesvr = !device_traffic_bypass_manager_t::has_main_composition();
 
-  // Checkpoints are only supported in device traffic replay mode, for both the main and the mirror FESVR
-  if (!checkpoint_creation_list.empty() && arg_device_traffic_replay_path.empty())
-    throw std::runtime_error("to create checkpoint(s), FESVR must operate in device traffic replay mode.");
+  // Open the final state dump first, so that it reports an error of the configuration below too. (A mirror FESVR
+  // doesn't dump the final state.)
+  if (is_main_fesvr && !arg_final_state_dump_path.empty())
+    this->set_state_dump_path(arg_final_state_dump_path);
 
-  if (!checkpoint_restoration_path.empty() && arg_device_traffic_replay_path.empty())
-    throw std::runtime_error("to load a checkpoint, FESVR must operate in device traffic replay mode.");
-
-  // In replay mode (and on a mirror) the boot ELF comes from the recording, and the program arguments from the recorded
-  // traffic (sys_getmainvars), so target arguments would be silently ignored: reject them.
-  if ((!is_main_fesvr || !arg_device_traffic_replay_path.empty()) && !targs.empty())
+  try
   {
-    std::string joined_targs;
-    for (auto &a: targs)
-      joined_targs += (joined_targs.empty() ? "" : " ") + a;
-    throw std::runtime_error(
-      std::string(is_main_fesvr ? "in device traffic replay mode" : "on a mirror FESVR") +
-      ", the boot ELF comes from the recording's " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
-      " and the program arguments from the recorded traffic; remove the target program and its arguments: " + joined_targs);
-  }
+    if (!arg_create_checkpoint_path.empty())
+      checkpoint_creation_list = ckpt_desc_file_read(arg_create_checkpoint_path);
 
-  if (!is_main_fesvr)
-  {
-    // This FESVR instance is not the main instance, it simply replays the device traffic supplied by the main instance
-    device_composition = std::unique_ptr<device_composition_t>(
-      new recorded_composition_t(
-        *this,
-        std::unique_ptr<cmd_service_sequence_supplier_t>(
-          new cmd_service_sequence_buffer_t(
-            device_traffic_bypass_manager_t::get_main_composition()))));
+    // Checkpoints are only supported in device traffic replay mode, for both the main and the mirror FESVR
+    if (!checkpoint_creation_list.empty() && arg_device_traffic_replay_path.empty())
+      throw std::runtime_error("to create checkpoint(s), FESVR must operate in device traffic replay mode.");
 
-    // a mirror boots the same ELF as the main FESVR
-    boot_elf_path = device_traffic_bypass_manager_t::get_main_boot_elf();
-  }
-  else
-  {
-    // This FESVR instance is the main instance and need to go through detailed configuration.
-    if (arg_device_traffic_replay_path.empty())
+    if (!checkpoint_restoration_path.empty() && arg_device_traffic_replay_path.empty())
+      throw std::runtime_error("to load a checkpoint, FESVR must operate in device traffic replay mode.");
+
+    // In replay mode (and on a mirror) the boot ELF comes from the recording, and the program arguments from the recorded
+    // traffic (sys_getmainvars), so target arguments would be silently ignored: reject them.
+    if ((!is_main_fesvr || !arg_device_traffic_replay_path.empty()) && !targs.empty())
     {
-      // FESVR is launched in real device mode, requires device setup
-      auto real_device_composition = new real_composition_t(*this);
-      for (auto &dev_arg: arg_devices)
-      {
-        if (dev_arg.first == "rfb")
-          dynamic_devices.push_back(new rfb_t(atoi(dev_arg.second.c_str())));
-        else if (dev_arg.first == "disk")
-          dynamic_devices.push_back(new disk_t(dev_arg.second.c_str()));
-        else
-          throw std::runtime_error("unknown device: " + dev_arg.first);
-      }
+      std::string joined_targs;
+      for (auto &a: targs)
+        joined_targs += (joined_targs.empty() ? "" : " ") + a;
+      throw std::runtime_error(
+        std::string(is_main_fesvr ? "in device traffic replay mode" : "on a mirror FESVR") +
+        ", the boot ELF comes from the recording's " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
+        " and the program arguments from the recorded traffic; remove the target program and its arguments: " + joined_targs);
+    }
 
-      // strace will only work in real device mode
-      if (!arg_strace_output_path.empty())
-        syscall_proxy.enable_strace(arg_strace_output_path.c_str());
+    if (!is_main_fesvr)
+    {
+      // This FESVR instance is not the main instance, it simply replays the device traffic supplied by the main instance
+      device_composition = std::unique_ptr<device_composition_t>(
+        new recorded_composition_t(
+          *this,
+          std::unique_ptr<cmd_service_sequence_supplier_t>(
+            new cmd_service_sequence_buffer_t(
+              device_traffic_bypass_manager_t::get_main_composition()))));
 
-      // console dump will only work in real device mode
-      if (!arg_console_dump_base.empty())
-        syscall_proxy.dump_std_out_err(
-          (arg_console_dump_base + ".stdout").c_str(),
-          (arg_console_dump_base + ".stderr").c_str());
-
-      // chroot and target-cwd only applies to real device mode
-      if (!arg_chroot_dir.empty())
-        set_chroot(arg_chroot_dir.c_str());
-      if (arg_target_init_cwd.empty())
-        syscall_proxy.init_target_cwd(nullptr);
-      else
-        syscall_proxy.init_target_cwd(arg_target_init_cwd.c_str());
-
-      // after chroot and target cwd are set up, as targs[0] is a target path in chroot mode
-      boot_elf_path = resolve_boot_elf_path();
-
-      real_device_composition->register_device(syscall_proxy);
-      real_device_composition->register_device(bcd);
-      for (auto d: dynamic_devices)
-        real_device_composition->register_device(*d);
-      device_composition = std::unique_ptr<device_composition_t>(real_device_composition);
+      // a mirror boots the same ELF as the main FESVR
+      boot_elf_path = device_traffic_bypass_manager_t::get_main_boot_elf();
     }
     else
     {
-      // FESVR is launched in traffic replay mode, no device setup required, but need to prepare the state of replayer
-      riscv_target_spec_t recording_spec{};
-      auto recorded_composition = new recorded_composition_t(*this, std::unique_ptr<device_traffic_replayer_t>(new device_traffic_replayer_t(arg_device_traffic_replay_path)));
+      // This FESVR instance is the main instance and need to go through detailed configuration.
+      if (arg_device_traffic_replay_path.empty())
+      {
+        // FESVR is launched in real device mode, requires device setup
+        auto real_device_composition = new real_composition_t(*this);
+        for (auto &dev_arg: arg_devices)
+        {
+          if (dev_arg.first == "rfb")
+            dynamic_devices.push_back(new rfb_t(atoi(dev_arg.second.c_str())));
+          else if (dev_arg.first == "disk")
+            dynamic_devices.push_back(new disk_t(dev_arg.second.c_str()));
+          else
+            throw std::runtime_error("unknown device: " + dev_arg.first);
+        }
 
-      recorded_composition->get_spec_from_traffic_source(recording_spec);
+        // strace will only work in real device mode
+        if (!arg_strace_output_path.empty())
+          syscall_proxy.enable_strace(arg_strace_output_path.c_str());
 
-      // the ELF loaded at boot is part of the recording; the target spec check in start() verifies its SHA256
-      std::string recorded_boot_elf = arg_device_traffic_replay_path + "/" + device_traffic_persistent::BOOT_ELF_FILE_NAME;
-      static const uint8_t no_elf_sha256[sizeof(recording_spec.load_elf_sha256)] = {0};
-      if (access(recorded_boot_elf.c_str(), F_OK) == 0)
-        boot_elf_path = recorded_boot_elf;
-      else if (memcmp(recording_spec.load_elf_sha256, no_elf_sha256, sizeof(no_elf_sha256)) != 0)
-        throw std::runtime_error(
-          "the device traffic recording " + arg_device_traffic_replay_path + " has no " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
-          " (it was probably recorded before the boot ELF was saved into recordings): copy the ELF it was recorded with" +
-          " (usually pk) there as " + device_traffic_persistent::BOOT_ELF_FILE_NAME + ", its SHA256 must be " +
-          crypto_digest_t::to_string(recording_spec.load_elf_sha256, sizeof(recording_spec.load_elf_sha256)) + ".");
+        // console dump will only work in real device mode
+        if (!arg_console_dump_base.empty())
+          syscall_proxy.dump_std_out_err(
+            (arg_console_dump_base + ".stdout").c_str(),
+            (arg_console_dump_base + ".stderr").c_str());
 
-      device_composition = std::unique_ptr<device_composition_t>(recorded_composition);
+        // chroot and target-cwd only applies to real device mode
+        if (!arg_chroot_dir.empty())
+          set_chroot(arg_chroot_dir.c_str());
+        if (arg_target_init_cwd.empty())
+          syscall_proxy.init_target_cwd(nullptr);
+        else
+          syscall_proxy.init_target_cwd(arg_target_init_cwd.c_str());
+
+        // after chroot and target cwd are set up, as targs[0] is a target path in chroot mode
+        boot_elf_path = resolve_boot_elf_path();
+
+        real_device_composition->register_device(syscall_proxy);
+        real_device_composition->register_device(bcd);
+        for (auto d: dynamic_devices)
+          real_device_composition->register_device(*d);
+        device_composition = std::unique_ptr<device_composition_t>(real_device_composition);
+      }
+      else
+      {
+        // FESVR is launched in traffic replay mode, no device setup required, but need to prepare the state of replayer
+        riscv_target_spec_t recording_spec{};
+        auto recorded_composition = new recorded_composition_t(*this, std::unique_ptr<device_traffic_replayer_t>(new device_traffic_replayer_t(arg_device_traffic_replay_path)));
+
+        recorded_composition->get_spec_from_traffic_source(recording_spec);
+
+        // the ELF loaded at boot is part of the recording; the target spec check in start() verifies its SHA256
+        std::string recorded_boot_elf = arg_device_traffic_replay_path + "/" + device_traffic_persistent::BOOT_ELF_FILE_NAME;
+        static const uint8_t no_elf_sha256[sizeof(recording_spec.load_elf_sha256)] = {0};
+        if (access(recorded_boot_elf.c_str(), F_OK) == 0)
+          boot_elf_path = recorded_boot_elf;
+        else if (memcmp(recording_spec.load_elf_sha256, no_elf_sha256, sizeof(no_elf_sha256)) != 0)
+          throw std::runtime_error(
+            "the device traffic recording " + arg_device_traffic_replay_path + " has no " + device_traffic_persistent::BOOT_ELF_FILE_NAME +
+            " (it was probably recorded before the boot ELF was saved into recordings): copy the ELF it was recorded with" +
+            " (usually pk) there as " + device_traffic_persistent::BOOT_ELF_FILE_NAME + ", its SHA256 must be " +
+            crypto_digest_t::to_string(recording_spec.load_elf_sha256, sizeof(recording_spec.load_elf_sha256)) + ".");
+
+        device_composition = std::unique_ptr<device_composition_t>(recorded_composition);
+      }
+      // Register this FESVR instance as the main instance
+      device_traffic_bypass_manager_t::set_main_composition(*device_composition);
+      device_traffic_bypass_manager_t::set_main_boot_elf(boot_elf_path);
+
+      // Setup signature output file
+      if (!arg_result_sig_file.empty())
+        sig_file = arg_result_sig_file;
+
+      // Setup the traffic recorder
+      if (!arg_device_traffic_record_path.empty())
+      {
+        traffic_recorder = std::unique_ptr<device_traffic_recorder_t>(new device_traffic_recorder_t(arg_device_traffic_record_path));
+        device_composition->register_traffic_listener(*traffic_recorder);
+      }
+
+      // debug output, only registered with +verbose: any registered listener makes every command capture its traffic
+      if (g_fesvr_verbose_output)
+        device_composition->register_traffic_listener(traffic_debug_listener);
     }
-    // Register this FESVR instance as the main instance
-    device_traffic_bypass_manager_t::set_main_composition(*device_composition);
-    device_traffic_bypass_manager_t::set_main_boot_elf(boot_elf_path);
-
-    // Setup final state dump
-    if (!arg_final_state_dump_path.empty())
-      this->set_state_dump_path(arg_final_state_dump_path);
-
-    // Setup signature output file
-    if (!arg_result_sig_file.empty())
-      sig_file = arg_result_sig_file;
-
-    // Setup the traffic recorder
-    if (!arg_device_traffic_record_path.empty())
-    {
-      traffic_recorder = std::unique_ptr<device_traffic_recorder_t>(new device_traffic_recorder_t(arg_device_traffic_record_path));
-      device_composition->register_traffic_listener(*traffic_recorder);
-    }
-
-    // debug output, only registered with +verbose: any registered listener makes every command capture its traffic
-    if (g_fesvr_verbose_output)
-      device_composition->register_traffic_listener(traffic_debug_listener);
+  }
+  catch (const std::exception &e)
+  {
+    dump_final_error(e.what());
+    throw;
   }
 }
 
@@ -566,41 +579,67 @@ void htif_t::upload_hart_full_state(uint32_t hart_id, const std::vector<char> &s
 
 int htif_t::run()
 {
-  start();
-  std::vector<std::queue<reg_t>> fromhost(num_cores());
-
-  auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
-  std::vector<std::function<void(reg_t)>> fromhost_callbacks;
-  for (size_t i = 0; i < num_cores(); i++)
-    fromhost_callbacks.push_back(std::bind(enq_func, &fromhost[i], std::placeholders::_1));
-
-  while (!signal_exit && exitcode == 0)
+  try
   {
-    for (uint32_t coreid = 0; coreid < num_cores(); coreid++)
+    start();
+    std::vector<std::queue<reg_t>> fromhost(num_cores());
+
+    auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
+    std::vector<std::function<void(reg_t)>> fromhost_callbacks;
+    for (size_t i = 0; i < num_cores(); i++)
+      fromhost_callbacks.push_back(std::bind(enq_func, &fromhost[i], std::placeholders::_1));
+
+    while (!signal_exit && exitcode == 0 && !stop_requested)
     {
-      hart_execution_ctrl.do_poll(coreid);
-      if (auto tohost = write_cr(coreid, 30, 0))
+      for (uint32_t coreid = 0; coreid < num_cores(); coreid++)
       {
-        command_t cmd(this, tohost, fromhost_callbacks[coreid], coreid);
-        device_composition->handle_command(cmd);
-        // The command ended the run (e.g. the program exited): dump the final state now, while the hart still waits
-        // on it, so that the count is the one before the command. Once responded, the hart would run on until
-        // whichever tick serves the dump.
-        if (exitcode != 0)
-          dump_final_state();
+        hart_execution_ctrl.do_poll(coreid);
+        if (auto tohost = write_cr(coreid, 30, 0))
+        {
+          const bool already_exiting = exitcode != 0;
+          command_t cmd(this, tohost, fromhost_callbacks[coreid], coreid);
+          device_composition->handle_command(cmd);
+          // The command ended the run (the program exited): dump the final state now, while the hart still waits on
+          // it, so that the count is the one before the command. Once responded, the hart would run on until
+          // whichever tick serves the dump.
+          if (!already_exiting && exitcode != 0)
+          {
+            set_finish_reason(finish_reason_t::target_exit);
+            dump_final_state();
+          }
+        }
+
+        device_composition->tick();
+
+        if (!fromhost[coreid].empty())
+          if (write_cr(coreid, 31, fromhost[coreid].front()) == 0)
+            fromhost[coreid].pop();
       }
-
-      device_composition->tick();
-
-      if (!fromhost[coreid].empty())
-        if (write_cr(coreid, 31, fromhost[coreid].front()) == 0)
-          fromhost[coreid].pop();
     }
+
+    if (signal_exit)
+      set_finish_reason(finish_reason_t::interrupted);
+    stop();
+  }
+  catch (const std::exception &e)
+  {
+    dump_final_error(e.what());
+    throw;
   }
 
-  stop();
-
   return exit_code();
+}
+
+void htif_t::request_stop(finish_reason_t reason)
+{
+  set_finish_reason(reason);
+  stop_requested = true;
+}
+
+void htif_t::set_finish_reason(finish_reason_t reason)
+{
+  if (finish_reason == finish_reason_t::none)
+    finish_reason = reason;
 }
 
 uint32_t htif_t::num_cores()
@@ -638,16 +677,82 @@ void htif_t::set_state_dump_path(std::string dump_path)
     throw std::runtime_error(
         "Fail to create state dump file at \"" + dump_path + "\", reason: " + std::string(std::strerror(errno)));
   }
+
+  // Until the run finishes (dump_final_state() replaces it), the dump says so: a process that dies otherwise (a crash,
+  // an assert, kill -9) leaves this, not an empty file.
+  fprintf(this->stats_dump_fd, "{\n  \"finish_reason\": \"unfinished\"\n}\n");
+  fflush(this->stats_dump_fd);
 }
 
-// dump states to this->stats_dump_fd in JSON format
+static const char *finish_reason_name(htif_t::finish_reason_t reason)
+{
+  switch (reason)
+  {
+    case htif_t::finish_reason_t::target_exit: return "target_exit";
+    case htif_t::finish_reason_t::checkpoints_created: return "checkpoints_created";
+    case htif_t::finish_reason_t::instret_limit: return "instret_limit";
+    case htif_t::finish_reason_t::debug_quit: return "debug_quit";
+    case htif_t::finish_reason_t::interrupted: return "interrupted";
+    case htif_t::finish_reason_t::error: return "error";
+    case htif_t::finish_reason_t::none: break;
+  }
+  return "unspecified";
+}
+
+// Quote a string as a JSON string literal
+static std::string json_str(const std::string &s)
+{
+  std::string out = "\"";
+  for (unsigned char c: s)
+  {
+    if (c == '"' || c == '\\')
+      out += std::string("\\") + (char) c;
+    else if (c < 0x20)
+    {
+      char buf[8];
+      snprintf(buf, sizeof(buf), "\\u%04x", c);
+      out += buf;
+    }
+    else
+      out += (char) c;
+  }
+  return out + "\"";
+}
+
+// Write the final state dump: why the run finished, and the hart states unless it failed. Only the first call writes
+// (it closes the file), the run's end calls it where its state is precise (see run(), setup_trap_for_next_checkpoint()).
 void htif_t::dump_final_state()
 {
   if (this->stats_dump_fd == NULL)
     return;
 
-  const size_t n_harts = num_cores();
+  // Replace the placeholder written by set_state_dump_path()
+  rewind(this->stats_dump_fd);
+  if (ftruncate(fileno(this->stats_dump_fd), 0) != 0)
+    fprintf(stderr, "Warning: failed to truncate the final state dump: %s\n", strerror(errno));
+
   fprintf(this->stats_dump_fd, "{\n");
+  fprintf(this->stats_dump_fd, "  \"finish_reason\": \"%s\",\n", finish_reason_name(finish_reason));
+  switch (finish_reason)
+  {
+    case finish_reason_t::target_exit:
+      fprintf(this->stats_dump_fd, "  \"exit_code\": %d,\n", exit_code());
+      break;
+    case finish_reason_t::interrupted:
+      fprintf(this->stats_dump_fd, "  \"signal\": \"%s\",\n",
+              signal_exit_sig == SIGINT ? "SIGINT" : signal_exit_sig == SIGTERM ? "SIGTERM" : "unknown");
+      break;
+    case finish_reason_t::error:
+      // The target may be unable to answer: dump no hart state
+      fprintf(this->stats_dump_fd, "  \"error\": %s\n}\n", json_str(finish_error).c_str());
+      fclose(this->stats_dump_fd);
+      this->stats_dump_fd = NULL;
+      return;
+    default:
+      break;
+  }
+
+  const size_t n_harts = num_cores();
   fprintf(this->stats_dump_fd, "  \"hart_state\": [\n");
   for (size_t n = 0; n < n_harts; n++)
   {
@@ -666,6 +771,16 @@ void htif_t::dump_final_state()
   fprintf(this->stats_dump_fd, "}\n");
   fclose(this->stats_dump_fd);
   this->stats_dump_fd = NULL;
+}
+
+// Write the final state dump of a run the FESVR failed, with the error. Does nothing if the dump is already written.
+void htif_t::dump_final_error(const std::string &what)
+{
+  if (this->stats_dump_fd == NULL)
+    return;
+  finish_reason = finish_reason_t::error;
+  finish_error = what;
+  dump_final_state();
 }
 
 /**
@@ -1001,7 +1116,10 @@ void htif_t::setup_trap_for_next_checkpoint()
 
   if (checkpoint_creation_num_created == checkpoint_creation_list.size())
   {
-    // all checkpoint created, prepare to stop simulation
+    // all checkpoint created, prepare to stop simulation. Dump the final state now, while the hart is still frozen at
+    // the last checkpoint: once defrosted, it runs on until the FESVR stops it.
+    set_finish_reason(finish_reason_t::checkpoints_created);
+    dump_final_state();
     this->exitcode = 1;
     return;
   }
