@@ -37,6 +37,7 @@ set(
         device_traffic_format.h
         checkpoint_format.h
         fesvr_build_info.h
+        json_file.h
         hart_state_format.h
         little_endian.h
         ckpt_desc_reader.h

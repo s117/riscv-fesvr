@@ -4,6 +4,13 @@
 
 #include "device_traffic_persistent.h"
 #include "checksum.h"
+#include "fesvr_build_info.h"
+#include "json_file.h"
+#include <climits>
+#include <ctime>
+#include <iterator>
+#include <sys/utsname.h>
+#include <unistd.h>
 #include <cstring>
 static constexpr auto CHECKSUM_ALGO = checksum_t::CRC32;
 
@@ -471,6 +478,91 @@ void device_traffic_recorder_t::close()
   {
     writer.second->close();
   }
+  // The recording is complete: note when it finished (a carried-over provenance is left as it is). The run is over and
+  // the recording is complete, so a failure here only costs the end time: warn, and keep the file written at the start.
+  if (m_provenance_written && m_carry_provenance_from.empty())
+  {
+    m_provenance_written = false;
+    try
+    {
+      write_provenance(true);
+    }
+    catch (const std::exception &e)
+    {
+      fprintf(stderr, "Warning: cannot note the end of the device traffic recording in its provenance: %s\n", e.what());
+    }
+  }
+}
+
+void device_traffic_recorder_t::set_simulator_provenance(
+  const std::string &name, const std::vector<std::pair<std::string, std::string>> &build_fields, const std::vector<std::string> &argv)
+{
+  m_has_simulator_provenance = true;
+  m_simulator_name = name;
+  m_simulator_build_fields = build_fields;
+  m_argv = argv;
+}
+
+void device_traffic_recorder_t::carry_provenance_from(const std::string &replay_folder)
+{
+  m_carry_provenance_from = replay_folder;
+}
+
+// The local time now, as ISO 8601 with its UTC offset (as the build information's dates), and the time zone's name
+static void local_time_now(std::string &iso, std::string &zone)
+{
+  const time_t now = time(nullptr);
+  struct tm local{};
+  char buf[64];
+  if (now == (time_t) -1 || !localtime_r(&now, &local) || !strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", &local))
+    throw std::runtime_error("Cannot get the local time for the provenance of the device traffic recording.");
+  iso = buf;
+  zone = strftime(buf, sizeof(buf), "%Z", &local) ? buf : "";
+}
+
+// A JSON object of string values, its members indented by indent + 2 spaces
+static std::string json_object(const std::vector<std::pair<std::string, std::string>> &members, size_t indent)
+{
+  std::string text = "{";
+  for (size_t i = 0; i < members.size(); i++)
+    text += std::string(i ? ",\n" : "\n") + std::string(indent + 2, ' ') + json_str(members[i].first) + ": " +
+            json_str(members[i].second);
+  return text + "\n" + std::string(indent, ' ') + "}";
+}
+
+void device_traffic_recorder_t::write_provenance(bool finished)
+{
+  std::string finished_at, finished_zone;
+  if (finished)
+    local_time_now(finished_at, finished_zone);
+
+  std::vector<std::pair<std::string, std::string>> fesvr_build;
+  for (size_t i = 0; i < fesvr_build_info_num_fields; i++)
+    fesvr_build.emplace_back(fesvr_build_info_fields[i][0], fesvr_build_info_fields[i][2]);
+
+  std::string text = "{\n";
+  text += "  \"started\": " + json_str(m_started) + ",\n";
+  if (finished)
+    text += "  \"finished\": " + json_str(finished_at) + ",\n";
+  text += "  \"time_zone\": " + json_str(m_time_zone) + ",\n";
+  text += "  \"uname\": " + json_object(m_uname, 2) + ",\n";
+  text += "  \"command\": {\n";
+  if (m_has_simulator_provenance)
+  {
+    text += "    \"argv\": [";
+    for (size_t i = 0; i < m_argv.size(); i++)
+      text += (i ? ", " : "") + json_str(m_argv[i]);
+    text += "],\n";
+  }
+  text += "    \"cwd\": " + json_str(m_cwd) + "\n  },\n";
+  if (m_has_simulator_provenance)
+    text += "  \"simulator\": {\n    \"name\": " + json_str(m_simulator_name) + ",\n    \"build\": " +
+            json_object(m_simulator_build_fields, 4) + "\n  },\n";
+  text += "  \"fesvr\": " + json_object(fesvr_build, 2) + "\n}\n";
+
+  write_file_atomically(m_output_base_folder + PATH_SEP + device_traffic_persistent::PROVENANCE_FILE_NAME, text);
+  if (!finished)
+    m_provenance_written = true;
 }
 
 void device_traffic_recorder_t::on_target_spec_known(const riscv_target_spec_t &target_spec)
@@ -491,6 +583,36 @@ void device_traffic_recorder_t::on_target_spec_known(const riscv_target_spec_t &
   system_spec_output_stream.write((const char *) target_spec.load_elf_sha256, 256 / 8);
   system_spec_output_stream.close();
   m_initialized = true;
+
+  // How the recording is made, for provenance
+  if (!m_carry_provenance_from.empty())
+  {
+    // Re-recording a replay: the traffic, and so its provenance, are the replayed recording's
+    std::ifstream src(m_carry_provenance_from + PATH_SEP + device_traffic_persistent::PROVENANCE_FILE_NAME, std::ios::binary);
+    if (src)
+    {
+      std::string text((std::istreambuf_iterator<char>(src)), std::istreambuf_iterator<char>());
+      if (src.bad())
+        throw std::runtime_error("Cannot read the provenance of the replayed recording " + m_carry_provenance_from + ".");
+      write_file_atomically(m_output_base_folder + PATH_SEP + device_traffic_persistent::PROVENANCE_FILE_NAME, text);
+    }
+  }
+  else
+  {
+    local_time_now(m_started, m_time_zone);
+    struct utsname u{};
+    if (uname(&u) != 0)
+      throw std::runtime_error(std::string("Cannot get the system information (uname) for the provenance of the device traffic recording: ") +
+                               strerror(errno));
+    m_uname = {{"sysname", u.sysname}, {"nodename", u.nodename}, {"release", u.release}, {"version", u.version},
+               {"machine", u.machine}};
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof(cwd)))
+      throw std::runtime_error(std::string("Cannot get the working directory for the provenance of the device traffic recording: ") +
+                               strerror(errno));
+    m_cwd = cwd;
+    write_provenance(false);
+  }
 }
 
 void device_traffic_recorder_t::save_boot_elf(const std::string &host_path, const uint8_t expected_sha256[32])

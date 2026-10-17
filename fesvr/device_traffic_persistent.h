@@ -290,9 +290,35 @@ public:
    */
   void save_boot_elf(const std::string &host_path, const uint8_t expected_sha256[32]);
 
+  /**
+   * The simulator's part of the recording's provenance (PROVENANCE_FILE_NAME): its name, its build information as
+   * {key, value} pairs, and its command line. Set before the recording starts (on_target_spec_known()).
+   */
+  void set_simulator_provenance(const std::string &name, const std::vector<std::pair<std::string, std::string>> &build_fields,
+                                const std::vector<std::string> &argv);
+
+  /**
+   * This recording is made while replaying the recording in replay_folder: its traffic is a copy of that recording's,
+   * so its provenance is too. The recording gets a copy of that recording's provenance file, or none if it has none.
+   */
+  void carry_provenance_from(const std::string &replay_folder);
+
 protected:
+  // Write the provenance file: the recording's start and, once closed, its end
+  void write_provenance(bool finished);
+
   std::string m_output_base_folder;
   bool m_initialized;
+
+  // The provenance (see set_simulator_provenance() and carry_provenance_from())
+  std::string m_carry_provenance_from; // the replayed recording, if re-recording
+  bool m_has_simulator_provenance = false;
+  std::string m_simulator_name;
+  std::vector<std::pair<std::string, std::string>> m_simulator_build_fields;
+  std::vector<std::string> m_argv;
+  std::string m_started, m_time_zone, m_cwd;
+  std::vector<std::pair<std::string, std::string>> m_uname; // the recording machine, taken when the recording starts
+  bool m_provenance_written = false;
   std::map<uint32_t, std::unique_ptr<device_traffic_persistent::raw_packet_writer_t>> m_raw_packet_writers;
 };
 

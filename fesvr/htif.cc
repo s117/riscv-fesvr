@@ -20,6 +20,7 @@
 #include "ckpt_desc_reader.h"
 #include "checksum.h"
 #include "hart_state_format.h"
+#include "json_file.h"
 
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
@@ -257,6 +258,9 @@ htif_t::htif_t(const std::vector<std::string> &args)
       if (!arg_device_traffic_record_path.empty())
       {
         traffic_recorder = std::unique_ptr<device_traffic_recorder_t>(new device_traffic_recorder_t(arg_device_traffic_record_path));
+        // Recording while replaying copies the replayed traffic, so the provenance is the replayed recording's
+        if (!arg_device_traffic_replay_path.empty())
+          traffic_recorder->carry_provenance_from(arg_device_traffic_replay_path);
         device_composition->register_traffic_listener(*traffic_recorder);
       }
 
@@ -637,6 +641,13 @@ int htif_t::run()
   return exit_code();
 }
 
+void htif_t::set_simulator_provenance(const std::string &name, const std::vector<std::pair<std::string, std::string>> &build_fields,
+                                      int argc, const char *const *argv)
+{
+  if (traffic_recorder)
+    traffic_recorder->set_simulator_provenance(name, build_fields, std::vector<std::string>(argv, argv + argc));
+}
+
 void htif_t::request_stop(finish_reason_t reason)
 {
   set_finish_reason(reason);
@@ -673,43 +684,6 @@ int htif_t::exit_code()
   return exitcode >> 1;
 }
 
-// Replace the file at path by text atomically: write it to a temporary file next to it, with plain write(2)s (no stdio
-// buffer that an exit() would flush again), then rename it over path. A process dying at any point leaves the previous
-// content or the new one, never a part (at worst a stray temporary file). Throws on failure.
-static void write_file_atomically(const std::string &path, const std::string &text)
-{
-  const std::string tmp_path = path + ".tmp." + std::to_string(getpid());
-  auto fail = [&](const std::string &what, bool created) {
-    const std::string reason = std::strerror(errno);
-    if (created)
-      unlink(tmp_path.c_str());
-    throw std::runtime_error("Fail to write \"" + path + "\": " + what + ", reason: " + reason);
-  };
-
-  // Create the temporary file anew: O_EXCL fails on anything already there, a symlink included (O_NOFOLLOW says so
-  // explicitly), so a name planted in a shared directory can't redirect the write. Remove a stale one first, e.g. left
-  // by an earlier process with the same pid. The mode is 0666 & ~umask, as fopen() creates files.
-  unlink(tmp_path.c_str());
-  int fd = open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0666);
-  if (fd < 0)
-    fail("cannot create " + tmp_path, false);
-  for (size_t pos = 0; pos < text.size(); )
-  {
-    ssize_t n = write(fd, text.data() + pos, text.size() - pos);
-    if (n < 0 && errno == EINTR)
-      continue;
-    if (n <= 0)
-    {
-      close(fd);
-      fail("cannot write " + tmp_path, true);
-    }
-    pos += n;
-  }
-  if (close(fd) != 0)
-    fail("cannot close " + tmp_path, true);
-  if (rename(tmp_path.c_str(), path.c_str()) != 0)
-    fail("cannot rename " + tmp_path, true);
-}
 
 void htif_t::set_state_dump_path(std::string dump_path)
 {
@@ -735,25 +709,6 @@ static const char *finish_reason_name(htif_t::finish_reason_t reason)
   return "unspecified";
 }
 
-// Quote a string as a JSON string literal
-static std::string json_str(const std::string &s)
-{
-  std::string out = "\"";
-  for (unsigned char c: s)
-  {
-    if (c == '"' || c == '\\')
-      out += std::string("\\") + (char) c;
-    else if (c < 0x20)
-    {
-      char buf[8];
-      snprintf(buf, sizeof(buf), "\\u%04x", c);
-      out += buf;
-    }
-    else
-      out += (char) c;
-  }
-  return out + "\"";
-}
 
 // Write the final state dump: why the run finished, and the hart states unless it failed. Only the first call that
 // succeeds writes (once written, the dump is final); the run's end calls it where its state is precise (see run(),

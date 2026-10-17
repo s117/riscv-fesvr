@@ -21,6 +21,7 @@ namespace device_traffic_persistent
   static const uint32_t INDEX_FILE_MAGIC = 0x38834639;   /** Dialing DVTF-INDX on an ITU-T E.161 keypad */
   static const uint32_t SHA256_FILE_MAGIC = 0x38833478;  /** Dialing DVTF-DGST on an ITU-T E.161 keypad */
   static const char *const BOOT_ELF_FILE_NAME = "boot.elf"; /** The ELF loaded at boot, saved in the recording folder */
+  static const char *const PROVENANCE_FILE_NAME = "recording_provenance.json"; /** How the recording was made (not read by the replay) */
 
 
   enum packet_type_t

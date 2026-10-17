@@ -46,6 +46,12 @@ class htif_t
   // the FESVR stops the run through stop() (dumping the final state). The first reason set is kept.
   void request_stop(finish_reason_t reason);
 
+  // The simulator's part of a recording's provenance (+dev-traffic-record, see device_traffic_recorder_t): its name,
+  // its build information as {key, value} pairs, and its command line. Call it before the run starts; it does nothing
+  // if this FESVR doesn't record.
+  void set_simulator_provenance(const std::string &name, const std::vector<std::pair<std::string, std::string>> &build_fields,
+                                int argc, const char *const *argv);
+
   virtual reg_t read_cr(uint32_t coreid, uint16_t regnum);
   virtual reg_t write_cr(uint32_t coreid, uint16_t regnum, reg_t val);
 
