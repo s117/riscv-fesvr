@@ -63,7 +63,8 @@ class htif_t
   virtual uint32_t mem_mb();
 
  protected:
-  FILE* stats_dump_fd = NULL;
+  std::string stats_dump_path; // the final state dump (+final-state-dump), empty if none
+  bool final_state_dumped = false;
   bool is_main_fesvr;
 
   finish_reason_t finish_reason = finish_reason_t::none;

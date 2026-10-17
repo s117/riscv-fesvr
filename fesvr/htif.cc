@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <inttypes.h>
 #include "device_traffic_bypass.h"
@@ -40,10 +41,16 @@ static volatile bool signal_exit = false;
 static volatile sig_atomic_t signal_exit_sig = 0; // the signal that set signal_exit, for the final state dump
 static void handle_signal(int sig)
 {
-  if (sig == SIGABRT || signal_exit) // someone set up us the bomb!
+  if (sig == SIGABRT) // someone set up us the bomb! (e.g. a failed assert): still run the static destructors
     exit(-1);
-  signal_exit = true;
-  signal_exit_sig = sig;
+  // Only note the signal: run() leaves its loop at its next iteration, stops the run and dumps the final state. A
+  // repeated signal is ignored, the run is already stopping: a SIGTERM to a process group reaches spike twice under
+  // make (make passes its own copy on), and so does a batch scheduler's time limit. SIGKILL ends spike at once.
+  if (!signal_exit)
+  {
+    signal_exit_sig = sig;
+    signal_exit = true;
+  }
   signal(sig, &handle_signal);
 }
 
@@ -666,22 +673,51 @@ int htif_t::exit_code()
   return exitcode >> 1;
 }
 
+// Replace the file at path by text atomically: write it to a temporary file next to it, with plain write(2)s (no stdio
+// buffer that an exit() would flush again), then rename it over path. A process dying at any point leaves the previous
+// content or the new one, never a part (at worst a stray temporary file). Throws on failure.
+static void write_file_atomically(const std::string &path, const std::string &text)
+{
+  const std::string tmp_path = path + ".tmp." + std::to_string(getpid());
+  auto fail = [&](const std::string &what, bool created) {
+    const std::string reason = std::strerror(errno);
+    if (created)
+      unlink(tmp_path.c_str());
+    throw std::runtime_error("Fail to write \"" + path + "\": " + what + ", reason: " + reason);
+  };
+
+  // Create the temporary file anew: O_EXCL fails on anything already there, a symlink included (O_NOFOLLOW says so
+  // explicitly), so a name planted in a shared directory can't redirect the write. Remove a stale one first, e.g. left
+  // by an earlier process with the same pid. The mode is 0666 & ~umask, as fopen() creates files.
+  unlink(tmp_path.c_str());
+  int fd = open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0666);
+  if (fd < 0)
+    fail("cannot create " + tmp_path, false);
+  for (size_t pos = 0; pos < text.size(); )
+  {
+    ssize_t n = write(fd, text.data() + pos, text.size() - pos);
+    if (n < 0 && errno == EINTR)
+      continue;
+    if (n <= 0)
+    {
+      close(fd);
+      fail("cannot write " + tmp_path, true);
+    }
+    pos += n;
+  }
+  if (close(fd) != 0)
+    fail("cannot close " + tmp_path, true);
+  if (rename(tmp_path.c_str(), path.c_str()) != 0)
+    fail("cannot rename " + tmp_path, true);
+}
+
 void htif_t::set_state_dump_path(std::string dump_path)
 {
-  if (this->stats_dump_fd)
-    fclose(this->stats_dump_fd);
-
-  this->stats_dump_fd = fopen(dump_path.c_str(), "w");
-  if (this->stats_dump_fd == NULL)
-  {
-    throw std::runtime_error(
-        "Fail to create state dump file at \"" + dump_path + "\", reason: " + std::string(std::strerror(errno)));
-  }
-
   // Until the run finishes (dump_final_state() replaces it), the dump says so: a process that dies otherwise (a crash,
-  // an assert, kill -9) leaves this, not an empty file.
-  fprintf(this->stats_dump_fd, "{\n  \"finish_reason\": \"unfinished\"\n}\n");
-  fflush(this->stats_dump_fd);
+  // an assert, kill -9) leaves this, not an empty file. Written now, so that an unusable path fails at startup.
+  write_file_atomically(dump_path, "{\n  \"finish_reason\": \"unfinished\"\n}\n");
+  stats_dump_path = dump_path;
+  final_state_dumped = false;
 }
 
 static const char *finish_reason_name(htif_t::finish_reason_t reason)
@@ -719,68 +755,66 @@ static std::string json_str(const std::string &s)
   return out + "\"";
 }
 
-// Write the final state dump: why the run finished, and the hart states unless it failed. Only the first call writes
-// (it closes the file), the run's end calls it where its state is precise (see run(), setup_trap_for_next_checkpoint()).
+// Write the final state dump: why the run finished, and the hart states unless it failed. Only the first call that
+// succeeds writes (once written, the dump is final); the run's end calls it where its state is precise (see run(),
+// setup_trap_for_next_checkpoint()). The text is built first, then replaces the placeholder atomically.
 void htif_t::dump_final_state()
 {
-  if (this->stats_dump_fd == NULL)
+  if (stats_dump_path.empty() || final_state_dumped)
     return;
 
-  // Replace the placeholder written by set_state_dump_path()
-  rewind(this->stats_dump_fd);
-  if (ftruncate(fileno(this->stats_dump_fd), 0) != 0)
-    fprintf(stderr, "Warning: failed to truncate the final state dump: %s\n", strerror(errno));
-
-  fprintf(this->stats_dump_fd, "{\n");
-  fprintf(this->stats_dump_fd, "  \"finish_reason\": \"%s\",\n", finish_reason_name(finish_reason));
+  std::string text = "{\n";
+  text += std::string("  \"finish_reason\": \"") + finish_reason_name(finish_reason) + "\",\n";
   switch (finish_reason)
   {
     case finish_reason_t::target_exit:
-      fprintf(this->stats_dump_fd, "  \"exit_code\": %d,\n", exit_code());
+      text += "  \"exit_code\": " + std::to_string(exit_code()) + ",\n";
       break;
     case finish_reason_t::interrupted:
-      fprintf(this->stats_dump_fd, "  \"signal\": \"%s\",\n",
-              signal_exit_sig == SIGINT ? "SIGINT" : signal_exit_sig == SIGTERM ? "SIGTERM" : "unknown");
+      text += std::string("  \"signal\": \"") +
+              (signal_exit_sig == SIGINT ? "SIGINT" : signal_exit_sig == SIGTERM ? "SIGTERM" : "unknown") + "\",\n";
       break;
     case finish_reason_t::error:
       // The target may be unable to answer: dump no hart state
-      fprintf(this->stats_dump_fd, "  \"error\": %s\n}\n", json_str(finish_error).c_str());
-      fclose(this->stats_dump_fd);
-      this->stats_dump_fd = NULL;
-      return;
+      text += "  \"error\": " + json_str(finish_error) + "\n}\n";
+      break;
     default:
       break;
   }
 
-  const size_t n_harts = num_cores();
-  fprintf(this->stats_dump_fd, "  \"hart_state\": [\n");
-  for (size_t n = 0; n < n_harts; n++)
+  if (finish_reason != finish_reason_t::error)
   {
-    fprintf(this->stats_dump_fd, "    {\n");
-
-    // dump instret
-    uint64_t instret = read_cr(n, 6);
-    fprintf(this->stats_dump_fd, "      \"instret\": %" PRIu64 "\n", instret);
-
-    if (n == n_harts - 1)
-      fprintf(this->stats_dump_fd, "    }\n");
-    else
-      fprintf(this->stats_dump_fd, "    },\n");
+    const size_t n_harts = num_cores();
+    text += "  \"hart_state\": [\n";
+    for (size_t n = 0; n < n_harts; n++)
+    {
+      // dump instret
+      uint64_t instret = read_cr(n, 6);
+      text += "    {\n      \"instret\": " + std::to_string(instret) + "\n    }" + (n == n_harts - 1 ? "\n" : ",\n");
+    }
+    text += "  ]\n}\n";
   }
-  fprintf(this->stats_dump_fd, "  ]\n");
-  fprintf(this->stats_dump_fd, "}\n");
-  fclose(this->stats_dump_fd);
-  this->stats_dump_fd = NULL;
+
+  write_file_atomically(stats_dump_path, text);
+  final_state_dumped = true;
 }
 
 // Write the final state dump of a run the FESVR failed, with the error. Does nothing if the dump is already written.
 void htif_t::dump_final_error(const std::string &what)
 {
-  if (this->stats_dump_fd == NULL)
+  if (stats_dump_path.empty() || final_state_dumped)
     return;
   finish_reason = finish_reason_t::error;
   finish_error = what;
-  dump_final_state();
+  try
+  {
+    dump_final_state();
+  }
+  catch (const std::exception &e)
+  {
+    // Already failing: report the original error, not this one
+    fprintf(stderr, "Warning: failed to write the final state dump: %s\n", e.what());
+  }
 }
 
 /**
