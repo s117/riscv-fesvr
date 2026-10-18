@@ -11,7 +11,10 @@
 #include <fstream>
 #include <iomanip>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <limits.h>
+#include <dlfcn.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -35,6 +38,24 @@
 #ifndef TARGET_DIR
 # define TARGET_DIR "/" TARGET_ARCH "/bin/"
 #endif
+
+// The directory of the FESVR library (or of the program, when the FESVR is linked into it), with symlinks resolved;
+// empty if it can't be determined. In an installation it is <prefix>/lib (or <prefix>/bin).
+static std::string fesvr_binary_dir()
+{
+  char path[PATH_MAX];
+  Dl_info info;
+  if (!(dladdr((void*)&fesvr_binary_dir, &info) && info.dli_fname && strchr(info.dli_fname, '/') &&
+        realpath(info.dli_fname, path)))
+  {
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len <= 0)
+      return "";
+    path[len] = '\0';
+  }
+  std::string dir(path);
+  return dir.substr(0, dir.rfind('/'));
+}
 
 bool g_fesvr_verbose_output = false;
 
@@ -385,9 +406,16 @@ std::string htif_t::resolve_boot_elf_path()
     return targs[0];
   if (targs[0].find('/') == std::string::npos)
   {
-    std::string test_path = PREFIX TARGET_DIR + targs[0];
-    if (access(test_path.c_str(), F_OK) == 0)
-      return test_path;
+    // a bare name (e.g. pk) is looked up in the installation the FESVR runs from first, so a moved or renamed
+    // installation uses its own pk, then in the one it was configured for
+    std::vector<std::string> candidates;
+    std::string fesvr_dir = fesvr_binary_dir();
+    if (!fesvr_dir.empty())
+      candidates.push_back(fesvr_dir + "/.." TARGET_DIR + targs[0]);
+    candidates.push_back(PREFIX TARGET_DIR + targs[0]);
+    for (const auto& test_path : candidates)
+      if (access(test_path.c_str(), F_OK) == 0)
+        return test_path;
   }
   throw std::runtime_error("could not open " + targs[0]);
 }
